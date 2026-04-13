@@ -4284,9 +4284,28 @@ window.parseDateRange = function parseDateRange(str) {
     str = str.trim();
     const MONTHS = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
     const yr = new Date().getFullYear();
+    // ISO: 2026-04-26
     if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
       const d = new Date(str + 'T12:00:00');
       return {start: d, end: d};
+    }
+    // Numeric: 4/22, 4/22/26, 4/22/2026
+    const numeric = str.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
+    if (numeric) {
+      let y = numeric[3] ? parseInt(numeric[3]) : yr;
+      if (y < 100) y += 2000;
+      const d = new Date(y, parseInt(numeric[1]) - 1, parseInt(numeric[2]), 12);
+      return {start: d, end: d};
+    }
+    // Numeric range: 4/22 - 4/26
+    const numRange = str.match(/^(\d{1,2})\/(\d{1,2})\s*[-\u2013]\s*(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
+    if (numRange) {
+      let y = numRange[5] ? parseInt(numRange[5]) : yr;
+      if (y < 100) y += 2000;
+      return {
+        start: new Date(y, parseInt(numRange[1]) - 1, parseInt(numRange[2]), 12),
+        end:   new Date(y, parseInt(numRange[3]) - 1, parseInt(numRange[4]), 12)
+      };
     }
     const xMonth = str.match(/^([a-z]+)\s+(\d{1,2})\s*[-\u2013]\s*([a-z]+)\s+(\d{1,2})(?:\s+(\d{4}))?$/i);
     if (xMonth) {
@@ -4529,17 +4548,7 @@ function buildCalEvents() {
         });
       }
     } else if (!c.lastContact && c.cadence) {
-      // Never contacted — show on today
-      events.push({
-        date: new Date(),
-        dateStr: todayStr,
-        label: 'Never contacted: ' + c.name,
-        color: '#c0392b',
-        type: 'crm-overdue',
-        contactId: c.id,
-        catName: 'Network',
-        source: 'crm'
-      });
+      // Never contacted — intentionally not shown on calendar
     }
   });
 
