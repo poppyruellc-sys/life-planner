@@ -1176,6 +1176,7 @@
             <button class="btn btn-sm crm-filter" onclick="setCrmFilter('overdue',this)" style="border-color:#c0392b;color:#c0392b">Overdue</button>
             <button class="btn btn-sm crm-filter" onclick="setCrmFilter('soon',this)" style="border-color:#9A6500;color:#9A6500">Due soon</button>
             <button class="btn btn-sm crm-filter" onclick="setCrmFilter('recent',this)">Recently contacted</button>
+            <button class="btn btn-sm crm-filter" onclick="setCrmFilter('upcoming',this)" style="border-color:#1A5FA0;color:#1A5FA0">📅 Upcoming</button>
             <button class="btn btn-sm crm-filter" onclick="setCrmFilter('priority',this)" style="border-color:#e74c3c;color:#e74c3c">★ Priority</button>
           </div>
           <button class="btn btn-primary btn-sm" onclick="openAddContact()">+ Add contact</button>
@@ -1759,14 +1760,19 @@ function renderDashboard() {
     return 'ok';
   }
 
-  const overdue = contacts.filter(c => contactStatus(c) === 'overdue' || contactStatus(c) === 'never');
-  const soon    = contacts.filter(c => contactStatus(c) === 'soon');
-
+  const overdue  = contacts.filter(c => contactStatus(c) === 'overdue' || contactStatus(c) === 'never');
+  const soon     = contacts.filter(c => contactStatus(c) === 'soon');
   const priority = contacts.filter(c => c.isPriority && contactStatus(c) === 'ok');
 
-  function crmRow(c, accentColor) {
-    const ds = c.lastContact ? Math.floor((now - new Date(c.lastContact)) / 86400000) : null;
-    const daysLabel = ds === null ? 'never' : ds === 0 ? 'today' : ds + 'd ago';
+  // Upcoming meetings: scheduledMeeting within next 30 days
+  const upcoming = contacts.filter(c => {
+    if (!c.scheduledMeeting) return false;
+    const meetDate = new Date(c.scheduledMeeting + 'T12:00:00');
+    const diff = Math.floor((meetDate - now) / 86400000);
+    return diff >= 0 && diff <= 30;
+  }).sort((a, b) => new Date(a.scheduledMeeting) - new Date(b.scheduledMeeting));
+
+  function crmRow(c, accentColor, rightLabel) {
     const initials = c.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
     return `<div onclick="openCrmDetail('${c.id}')" style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
       <div class="crm-avatar" style="width:28px;height:28px;font-size:11px;position:relative">
@@ -1777,25 +1783,47 @@ function renderDashboard() {
         <div style="font-size:12px;font-weight:500">${esc(c.name)}</div>
         <div style="font-size:10px;color:var(--text3)">${c.company||c.role||'—'}</div>
       </div>
-      <span style="font-size:10px;color:${accentColor};white-space:nowrap;font-weight:500">${daysLabel}</span>
+      <span style="font-size:10px;color:${accentColor};white-space:nowrap;font-weight:500">${rightLabel}</span>
     </div>`;
+  }
+
+  function crmSectionHeader(label, color) {
+    return `<div style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.07em;color:${color};margin:10px 0 5px;padding-bottom:3px;border-bottom:1px solid var(--border)">${label}</div>`;
   }
 
   let netHtml = '';
 
+  if (upcoming.length) {
+    netHtml += crmSectionHeader('Upcoming meetings', '#1A5FA0');
+    netHtml += upcoming.slice(0,4).map(c => {
+      const meetDate = new Date(c.scheduledMeeting + 'T12:00:00');
+      const diff = Math.floor((meetDate - now) / 86400000);
+      const label = diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : meetDate.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+      return crmRow(c, '#1A5FA0', '📅 ' + label);
+    }).join('');
+  }
   if (overdue.length) {
-    netHtml += `<div style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.07em;color:#c0392b;margin-bottom:5px">Overdue (${overdue.length})</div>`;
-    netHtml += overdue.slice(0,4).map(c => crmRow(c, '#c0392b')).join('');
+    netHtml += crmSectionHeader('Overdue', '#c0392b');
+    netHtml += overdue.slice(0,4).map(c => {
+      const ds = c.lastContact ? Math.floor((now - new Date(c.lastContact)) / 86400000) : null;
+      return crmRow(c, '#c0392b', ds === null ? 'never' : ds + 'd ago');
+    }).join('');
   }
   if (soon.length) {
-    netHtml += `<div style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.07em;color:#9A6500;margin:10px 0 5px">Due soon (${soon.length})</div>`;
-    netHtml += soon.slice(0,3).map(c => crmRow(c, '#9A6500')).join('');
+    netHtml += crmSectionHeader('Due soon', '#9A6500');
+    netHtml += soon.slice(0,3).map(c => {
+      const ds = c.lastContact ? Math.floor((now - new Date(c.lastContact)) / 86400000) : null;
+      return crmRow(c, '#9A6500', ds === null ? 'never' : ds + 'd ago');
+    }).join('');
   }
   if (priority.length) {
-    netHtml += `<div style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.07em;color:#e74c3c;margin:10px 0 5px">Priority contacts</div>`;
-    netHtml += priority.slice(0,3).map(c => crmRow(c, '#1A7A55')).join('');
+    netHtml += crmSectionHeader('Priority', '#e74c3c');
+    netHtml += priority.slice(0,3).map(c => {
+      const ds = c.lastContact ? Math.floor((now - new Date(c.lastContact)) / 86400000) : null;
+      return crmRow(c, '#1A7A55', ds === null ? 'never' : ds + 'd ago');
+    }).join('');
   }
-  if (!overdue.length && !soon.length && !priority.length) {
+  if (!upcoming.length && !overdue.length && !soon.length && !priority.length) {
     netHtml = '<div class="muted" style="font-size:13px">All contacts up to date.</div>';
   }
   document.getElementById('networkDash').innerHTML = netHtml;
@@ -3710,6 +3738,14 @@ function renderCrm() {
   if (crmFilter === 'soon')    filtered = contacts.filter(c => contactStatus(c) === 'soon');
   if (crmFilter === 'recent')   filtered = contacts.filter(c => contactStatus(c) === 'ok');
   if (crmFilter === 'priority') filtered = contacts.filter(c => c.isPriority);
+  if (crmFilter === 'upcoming') {
+    const nowTs = Date.now();
+    filtered = contacts.filter(c => {
+      if (!c.scheduledMeeting) return false;
+      const diff = Math.floor((new Date(c.scheduledMeeting + 'T12:00:00') - nowTs) / 86400000);
+      return diff >= 0 && diff <= 30;
+    }).sort((a,b) => new Date(a.scheduledMeeting) - new Date(b.scheduledMeeting));
+  }
 
   // Sort: overdue/never first, then by days since last contact desc
   filtered = filtered.slice().sort((a,b) => {
@@ -3750,10 +3786,11 @@ function renderCrm() {
             </div>
           </div>
           <div style="font-size:12px;color:var(--text2);margin-top:2px">${[c.role, c.company].filter(Boolean).join(' · ') || '—'}</div>
-          <div style="display:flex;align-items:center;gap:12px;margin-top:6px">
+          <div style="display:flex;align-items:center;gap:12px;margin-top:6px;flex-wrap:wrap">
             <span style="font-size:11px;color:var(--text3)">${CADENCE_LABELS[c.cadence]||c.cadence}</span>
             <span style="font-size:11px;color:var(--text3)">Last: ${daysLabel}</span>
             ${c.nextContact ? `<span style="font-size:11px;color:var(--accent)">Next: ${esc(c.nextContact)}</span>` : ''}
+            ${c.scheduledMeeting ? `<span style="font-size:11px;color:#1A5FA0;font-weight:500">📅 ${new Date(c.scheduledMeeting+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>` : ''}
           </div>
           ${c.why ? `<div style="font-size:12px;color:var(--text3);margin-top:4px;font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.why)}</div>` : ''}
         </div>
@@ -3885,6 +3922,14 @@ function renderCrmDetail(c) {
         </div>
       </div>
       <div style="margin-top:8px">
+        <label style="${labSt}">Scheduled meeting</label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input type="date" id="cd-meeting" value="${c.scheduledMeeting||''}" onchange="updateContact('scheduledMeeting',this.value)" style="${inpSt};flex:1;${c.scheduledMeeting?'border-color:#1A5FA0;background:#E6F1FB;':''}" placeholder="Schedule a future meeting">
+          ${c.scheduledMeeting ? `<button onclick="clearMeeting('${c.id}')" title="Clear meeting" style="padding:6px 10px;border:1px solid var(--border2);border-radius:8px;background:transparent;cursor:pointer;color:var(--text3);font-size:12px;font-family:'DM Sans',sans-serif;white-space:nowrap;flex-shrink:0">✕ Clear</button>` : ''}
+        </div>
+        ${c.scheduledMeeting ? `<div style="font-size:11px;color:#1A5FA0;margin-top:3px;font-weight:500">📅 Meeting scheduled</div>` : ''}
+      </div>
+      <div style="margin-top:8px">
         <label style="${labSt}">Next follow-up</label>
         <input type="text" id="cd-next" value="${esc(c.nextContact||'')}" placeholder="e.g. Mid-May, Jun 1..." onchange="updateContact('nextContact',this.value)" style="${inpSt}">
       </div>
@@ -3963,6 +4008,17 @@ function clearLastContact(id) {
   renderCrmDetail(c);
   renderCrm();
   showToast('Last contacted date cleared');
+}
+
+function clearMeeting(id) {
+  const c = (S.contacts||[]).find(x => x.id === id);
+  if (!c) return;
+  c.scheduledMeeting = null;
+  saveState();
+  renderCrmDetail(c);
+  renderCrm();
+  renderDashboard();
+  showToast('Meeting cleared');
 }
 
 function addLogEntry(id) {
