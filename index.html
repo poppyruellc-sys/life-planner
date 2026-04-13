@@ -265,10 +265,31 @@
     gap: 10px;
     padding: 8px 0;
     border-bottom: 1px solid var(--border);
+    position: relative;
   }
   .item-row:last-child { border-bottom: none; }
   #habitsToday .item-row:last-child { border-bottom: none; }
   #habitsToday { overflow: hidden; }
+  .drag-handle {
+    color: var(--text3);
+    cursor: grab;
+    font-size: 13px;
+    padding: 2px 2px 0;
+    flex-shrink: 0;
+    opacity: 0.35;
+    transition: opacity .15s;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .drag-handle:hover { opacity: 1; }
+  .item-row.dragging { opacity: 0.4; background: var(--surface2); }
+  .item-row.drag-over { border-top: 2px solid var(--accent); }
+  .completed-section { margin-top: 6px; }
+  .completed-toggle {
+    font-size: 11px; color: var(--text3); background: none; border: none;
+    cursor: pointer; padding: 4px 0; font-family: 'DM Sans', sans-serif;
+    display: inline-flex; align-items: center; gap: 4px;
+  }
 
   .checkbox {
     width: 16px;
@@ -2377,9 +2398,10 @@ function renderCatPanel() {
 
   function actionBtns(gi, item) {
     const pinned = item.showOnDash;
-    return `<div class="item-actions" style="display:flex;gap:3px;align-items:center;flex-shrink:0">
+    return `<div class="item-actions" style="display:flex;gap:3px;align-items:center;flex-shrink:0;flex-wrap:wrap">
       <button id="edit-btn-${gi}" onclick="toggleItemEdit(${gi})" title="Edit" style="padding:4px 9px;font-size:12px;border:1px solid var(--border2);border-radius:6px;background:transparent;cursor:pointer;color:var(--text3);font-family:'DM Sans',sans-serif">✎</button>
       <button id="dash-btn-${gi}" onclick="toggleShowOnDash(${gi})" title="${pinned?'Unpin from dashboard':'Pin to dashboard'}" style="padding:4px 9px;font-size:12px;border:1px solid ${pinned?'#1A7A55':'var(--border2)'};border-radius:6px;background:${pinned?'#E8F0EC':'transparent'};cursor:pointer;color:${pinned?'#1A7A55':'var(--text3)'};font-family:'DM Sans',sans-serif">◈</button>
+      ${moveToCatBtn(gi)}
       <button onclick="deleteCatItem(${gi})" title="Delete — permanently removes this item" style="padding:4px 9px;font-size:12px;border:1px solid var(--border2);border-radius:6px;background:transparent;cursor:pointer;color:#c0392b;font-family:'DM Sans',sans-serif">✕</button>
     </div>`;
   }
@@ -2387,10 +2409,11 @@ function renderCatPanel() {
   function habitActionBtns(gi, item) {
     const pinned = item.showOnDash;
     const onToday = item.showOnToday;
-    return `<div class="item-actions" style="display:flex;gap:3px;align-items:center;flex-shrink:0">
+    return `<div class="item-actions" style="display:flex;gap:3px;align-items:center;flex-shrink:0;flex-wrap:wrap">
       <button id="edit-btn-${gi}" onclick="toggleItemEdit(${gi})" title="Edit" style="padding:4px 9px;font-size:12px;border:1px solid var(--border2);border-radius:6px;background:transparent;cursor:pointer;color:var(--text3);font-family:'DM Sans',sans-serif">✎</button>
       <button id="dash-btn-${gi}" onclick="toggleShowOnDash(${gi})" title="${pinned?'Unpin from dashboard':'Pin to dashboard'}" style="padding:4px 9px;font-size:12px;border:1px solid ${pinned?'#1A7A55':'var(--border2)'};border-radius:6px;background:${pinned?'#E8F0EC':'transparent'};cursor:pointer;color:${pinned?'#1A7A55':'var(--text3)'};font-family:'DM Sans',sans-serif">◈</button>
       <button id="today-btn-${gi}" onclick="toggleShowOnToday(${gi})" title="${onToday?'Remove from Today tab':'Show on Today tab'}" style="padding:4px 9px;font-size:12px;border:1px solid ${onToday?'#1A5FA0':'var(--border2)'};border-radius:6px;background:${onToday?'#E6F1FB':'transparent'};cursor:pointer;color:${onToday?'#1A5FA0':'var(--text3)'};font-family:'DM Sans',sans-serif">◷</button>
+      ${moveToCatBtn(gi)}
       <button onclick="deleteCatItem(${gi})" title="Delete — permanently removes this item" style="padding:4px 9px;font-size:12px;border:1px solid var(--border2);border-radius:6px;background:transparent;cursor:pointer;color:#c0392b;font-family:'DM Sans',sans-serif">✕</button>
     </div>`;
   }
@@ -2582,14 +2605,79 @@ function renderCatPanel() {
     </div>`;
   }
 
+  // On load: move done items to bottom within each type group (in S.items)
+  let reordered = false;
+  TYPES.forEach(tp => {
+    if (!grouped[tp]) return;
+    const active = grouped[tp].filter(({item}) => item.s !== 'done');
+    const done   = grouped[tp].filter(({item}) => item.s === 'done');
+    if (done.length && active.length) {
+      // Re-order S.items so done items are after active within this type
+      const otherTypes = (S.items[activeCat] || []).filter((_, i) => {
+        const mapped = (['goal','aspiration','project'].includes((_=>(S.items[activeCat][i]||{}).tp||'task')()) ? 'goal'
+          : ((S.items[activeCat][i]||{}).tp === 'task' || (S.items[activeCat][i]||{}).tp === 'decision') ? 'task'
+          : (S.items[activeCat][i]||{}).tp === 'habit' ? 'habit'
+          : 'event');
+        return mapped !== tp;
+      });
+      // Rebuild this type's order: active first, done last
+      const reorderedType = [...active.map(x => x.item), ...done.map(x => x.item)];
+      // Rebuild full items array
+      const allItems = S.items[activeCat] || [];
+      const typeIndices = grouped[tp].map(x => x.gi);
+      typeIndices.forEach((origIdx, newPos) => {
+        allItems[origIdx] = reorderedType[newPos];
+      });
+      reordered = true;
+    }
+  });
+  if (reordered) { saveState(); }
+
+  // Re-group after potential reorder
+  const grouped2 = {};
+  (S.items[activeCat] || []).forEach((item, gi) => {
+    const tp = item.tp || 'task';
+    const mapped = (['goal','aspiration','project'].includes(tp)) ? 'goal'
+                 : (tp === 'task' || tp === 'decision' || tp === 'recurring') ? 'task'
+                 : (tp === 'habit') ? 'habit'
+                 : (tp === 'trip' || tp === 'event') ? 'event'
+                 : 'task';
+    if (!grouped2[mapped]) grouped2[mapped] = [];
+    grouped2[mapped].push({item, gi});
+  });
+
+  function dragHandle(gi, tp) {
+    return `<div class="drag-handle" draggable="true"
+      onmousedown="event.stopPropagation()"
+      ondragstart="dragStart(event,'${activeCat}',${gi},'${tp}')"
+      ondragend="dragEnd(event)"
+      title="Drag to reorder">☰</div>`;
+  }
+
+  function moveToCatBtn(gi) {
+    const opts = CATS.filter(c => c.id !== activeCat).map(c =>
+      `<option value="${c.id}">${esc(c.name)}</option>`
+    ).join('');
+    return `<select title="Move to category" onchange="moveToCat(${gi},this.value);this.value=''" style="padding:4px 6px;font-size:11px;border:1px solid var(--border2);border-radius:6px;background:transparent;cursor:pointer;color:var(--text3);font-family:'DM Sans',sans-serif;max-width:90px">
+      <option value="" disabled selected>→ Move</option>
+      ${opts}
+    </select>`;
+  }
+
   // Build sections
-  const sections = TYPES.filter(tp => grouped[tp]).map(tp => {
-    const rows = grouped[tp].map(({item, gi, origTp}) => {
+  const sections = TYPES.filter(tp => grouped2[tp]).map(tp => {
+    const allInType = grouped2[tp];
+    const activeItems = allInType.filter(({item}) => item.s !== 'done');
+    const doneItems   = allInType.filter(({item}) => item.s === 'done');
+
+    const rows = activeItems.map(({item, gi}) => {
 
       // ── GOAL ──
       if (tp === 'goal') {
         const pct = item.progress || 0;
-        return `<div class="item-row">
+        return `<div class="item-row" data-gi="${gi}" data-tp="goal"
+          ondragover="dragOver(event)" ondrop="drop(event,'${activeCat}','goal')">
+          ${dragHandle(gi,'goal')}
           <div style="flex:1;min-width:0">
             <div id="item-display-${gi}">
               <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px">
@@ -2640,7 +2728,9 @@ function renderCatPanel() {
       // ── HABIT / ROUTINE ──
       if (tp === 'habit') {
         const hs = item.habitStatus || 'yellow';
-        return `<div class="item-row">
+        return `<div class="item-row" data-gi="${gi}" data-tp="habit"
+          ondragover="dragOver(event)" ondrop="drop(event,'${activeCat}','habit')">
+          ${dragHandle(gi,'habit')}
           <div style="flex:1;min-width:0">
             <div id="item-display-${gi}">
               <div style="display:flex;align-items:center;gap:6px">
@@ -2667,7 +2757,9 @@ function renderCatPanel() {
       // ── EVENT / TRIP ──
       if (tp === 'event') {
         const sdotColor = item.s==='upcoming'?'#1A7A55':item.s==='done'?'#aaa':item.s==='unplanned'?'#c0392b':'#9A6500';
-        return `<div class="item-row">
+        return `<div class="item-row" data-gi="${gi}" data-tp="event"
+          ondragover="dragOver(event)" ondrop="drop(event,'${activeCat}','event')">
+          ${dragHandle(gi,'event')}
           <div class="sdot" style="background:${sdotColor};margin-top:4px;flex-shrink:0"></div>
           <div style="flex:1;min-width:0">
             <div id="item-display-${gi}">
@@ -2691,9 +2783,62 @@ function renderCatPanel() {
       return '';
     }).join('');
 
-    return `<div style="margin-bottom:20px">
+    // Done items section
+    let doneHtml = '';
+    if (doneItems.length) {
+      const doneRows = doneItems.map(({item, gi}) => {
+        if (tp === 'goal') {
+          const pct = item.progress || 0;
+          return `<div class="item-row" style="opacity:.5">
+            ${dragHandle(gi,'goal')}
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px;text-decoration:line-through;color:var(--text3)">${esc(item.t)}</div>
+            </div>
+            <div class="item-controls" style="display:flex;gap:4px;align-items:center;margin-left:8px">
+              ${moveToCatBtn(gi)}
+              <button onclick="deleteCatItem(${gi})" style="padding:4px 9px;font-size:12px;border:1px solid var(--border2);border-radius:6px;background:transparent;cursor:pointer;color:#c0392b;font-family:'DM Sans',sans-serif">✕</button>
+            </div>
+          </div>`;
+        }
+        if (tp === 'task') {
+          return `<div class="item-row" style="opacity:.5">
+            ${dragHandle(gi,'task')}
+            <div class="checkbox done" style="margin-top:3px">✓</div>
+            <div style="flex:1;min-width:0"><div class="item-text done">${esc(item.t)}</div></div>
+            <div style="display:flex;gap:4px;align-items:center;margin-left:8px">
+              ${moveToCatBtn(gi)}
+              <button onclick="deleteCatItem(${gi})" style="padding:4px 9px;font-size:12px;border:1px solid var(--border2);border-radius:6px;background:transparent;cursor:pointer;color:#c0392b;font-family:'DM Sans',sans-serif">✕</button>
+            </div>
+          </div>`;
+        }
+        if (tp === 'event') {
+          return `<div class="item-row" style="opacity:.5">
+            ${dragHandle(gi,'event')}
+            <div class="sdot" style="background:#aaa;margin-top:4px;flex-shrink:0"></div>
+            <div style="flex:1;min-width:0"><div style="font-size:13px;text-decoration:line-through;color:var(--text3)">${esc(item.t)}</div></div>
+            <div style="display:flex;gap:4px;align-items:center;margin-left:8px">
+              ${moveToCatBtn(gi)}
+              <button onclick="deleteCatItem(${gi})" style="padding:4px 9px;font-size:12px;border:1px solid var(--border2);border-radius:6px;background:transparent;cursor:pointer;color:#c0392b;font-family:'DM Sans',sans-serif">✕</button>
+            </div>
+          </div>`;
+        }
+        return '';
+      }).join('');
+      const uid = tp + '_done_' + activeCat;
+      doneHtml = `<div class="completed-section">
+        <button class="completed-toggle" onclick="toggleDoneSection('${uid}')">
+          <span id="done-arrow-${uid}" style="font-size:8px;transition:transform .15s">&#9654;</span>
+          ${doneItems.length} completed
+        </button>
+        <div id="done-section-${uid}" style="display:none">${doneRows}</div>
+      </div>`;
+    }
+
+    const activeRows = rows.join ? rows.join('') : rows;
+    return `<div style="margin-bottom:20px" data-type-group="${tp}">
       <div class="card-title">${TYPE_LABEL[tp]}</div>
-      ${rows}
+      <div data-drop-zone="${tp}">${activeRows || '<div class="muted" style="padding:6px 0;font-size:12px">None active.</div>'}</div>
+      ${doneHtml}
     </div>`;
   }).join('');
 
@@ -3858,6 +4003,83 @@ Please surface:
   });
 }
 
+
+
+// ─── DRAG AND DROP + MOVE TO CATEGORY ────────────────────────────────────────
+
+let dragSrcCat = null;
+let dragSrcGi  = null;
+let dragSrcTp  = null;
+
+function dragStart(e, catId, gi, tp) {
+  dragSrcCat = catId;
+  dragSrcGi  = gi;
+  dragSrcTp  = tp;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', gi);
+  setTimeout(() => {
+    const row = e.target.closest('.item-row');
+    if (row) row.classList.add('dragging');
+  }, 0);
+}
+
+function dragEnd(e) {
+  document.querySelectorAll('.item-row.dragging').forEach(r => r.classList.remove('dragging'));
+  document.querySelectorAll('.item-row.drag-over').forEach(r => r.classList.remove('drag-over'));
+}
+
+function dragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const row = e.target.closest('.item-row');
+  document.querySelectorAll('.item-row.drag-over').forEach(r => r.classList.remove('drag-over'));
+  if (row && row !== document.querySelector('.item-row.dragging')) {
+    row.classList.add('drag-over');
+  }
+}
+
+function drop(e, catId, tp) {
+  e.preventDefault();
+  document.querySelectorAll('.item-row.drag-over').forEach(r => r.classList.remove('drag-over'));
+  if (!dragSrcCat || dragSrcTp !== tp || dragSrcCat !== catId) return;
+
+  const targetRow = e.target.closest('.item-row');
+  if (!targetRow) return;
+  const targetGi = parseInt(targetRow.dataset.gi);
+  if (isNaN(targetGi) || targetGi === dragSrcGi) return;
+
+  // Reorder within S.items
+  const items = S.items[catId];
+  if (!items) return;
+  const srcItem = items.splice(dragSrcGi, 1)[0];
+  // Adjust target index after splice
+  const adjustedTarget = targetGi > dragSrcGi ? targetGi - 1 : targetGi;
+  items.splice(adjustedTarget, 0, srcItem);
+  saveState();
+  renderCatPanel();
+}
+
+function moveToCat(gi, targetCatId) {
+  if (!targetCatId || targetCatId === activeCat) return;
+  const items = S.items[activeCat];
+  if (!items || !items[gi]) return;
+  const item = items.splice(gi, 1)[0];
+  if (!S.items[targetCatId]) S.items[targetCatId] = [];
+  S.items[targetCatId].push(item);
+  saveState();
+  renderCatPanel();
+  const targetName = (CATS.find(c => c.id === targetCatId) || {}).name || targetCatId;
+  showToast(`Moved to ${targetName}`);
+}
+
+function toggleDoneSection(uid) {
+  const el = document.getElementById('done-section-' + uid);
+  const arrow = document.getElementById('done-arrow-' + uid);
+  if (!el) return;
+  const isOpen = el.style.display !== 'none';
+  el.style.display = isOpen ? 'none' : 'block';
+  if (arrow) arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
+}
 
 // ─── MANAGE CATEGORIES ───────────────────────────────────────────────────────
 
