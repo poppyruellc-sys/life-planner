@@ -4497,6 +4497,20 @@ function buildCalEvents() {
         });
       }
     }
+    // Scheduled meeting if set
+    if (c.scheduledMeeting) {
+      const date = new Date(c.scheduledMeeting + 'T12:00:00');
+      events.push({
+        date,
+        dateStr: c.scheduledMeeting,
+        label: '📅 Meeting: ' + c.name,
+        color: '#1A5FA0',
+        type: 'crm',
+        contactId: c.id,
+        catName: 'Network',
+        source: 'crm'
+      });
+    }
     // Overdue — show on today
     if (c.lastContact) {
       const days = CADENCE_DAYS_CAL[c.cadence] || 90;
