@@ -4513,7 +4513,6 @@ async function loadFromGist(showFeedback) {
   const {token, gistId} = getSyncCreds();
   if (!token || !gistId) { showSyncSetup(); return; }
   const statusEl = document.getElementById('syncModalStatus');
-  if (statusEl) statusEl.textContent = 'Loading from cloud...';
   updateSyncStatusUI('saving', 'Loading from cloud...');
   try {
     const res = await fetch(`https://api.github.com/gists/${gistId}`, {
@@ -4527,18 +4526,17 @@ async function loadFromGist(showFeedback) {
       updateSyncStatusUI('idle', 'Connected');
       return;
     }
-    // Confirm before overwriting
-    if (showFeedback !== false) {
-      const confirmed = await showSyncConfirm('Load from cloud?', 'This will replace your current local data with the cloud version. Any unsynced local changes will be lost.');
-      if (!confirmed) { if (statusEl) statusEl.textContent = 'Cancelled.'; return; }
-    }
+    // Load data and do a full re-render — no confirmation dialog
     localStorage.setItem('lcc_v4', fileContent);
     loadState();
-    renderDashboard();
+    // Re-render everything
+    renderPanel(currentView);
+    renderCategories();
     lastSyncTime = new Date();
     const timeStr = lastSyncTime.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'});
     updateSyncStatusUI('saved', `Loaded · ${timeStr}`);
     if (statusEl) statusEl.textContent = '✓ Data loaded successfully.';
+    closeSyncSetup();
     showToast('Data loaded from cloud');
   } catch(e) {
     updateSyncStatusUI('error', 'Load failed — check credentials');
@@ -4613,9 +4611,28 @@ async function initSync() {
     updateSyncStatusUI('disconnected', '');
     return;
   }
-  updateSyncStatusUI('idle', 'Connected');
-  // On startup, silently check if cloud is newer than local
-  // We just show connected status — manual load available via the ☁ icon
+  updateSyncStatusUI('saving', 'Loading from cloud...');
+  try {
+    const {token, gistId} = getSyncCreds();
+    const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+      headers: { 'Authorization': `token ${token}` }
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    const fileContent = json.files && json.files['lcc_data.json'] && json.files['lcc_data.json'].content;
+    if (fileContent && fileContent.trim() !== '{}' && fileContent.trim() !== '') {
+      localStorage.setItem('lcc_v4', fileContent);
+      loadState();
+      renderPanel(currentView);
+      renderCategories();
+    }
+    lastSyncTime = new Date();
+    const timeStr = lastSyncTime.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'});
+    updateSyncStatusUI('saved', `Synced · ${timeStr}`);
+  } catch(e) {
+    updateSyncStatusUI('error', 'Sync failed');
+    console.error('Gist startup load error:', e);
+  }
 }
 
 // Reconnect when coming back online
