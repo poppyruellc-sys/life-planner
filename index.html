@@ -1190,6 +1190,10 @@
             <input type="text" id="nc-role" placeholder="Role / title">
             <input type="text" id="nc-how" placeholder="How you know them">
           </div>
+          <div class="g2" style="gap:10px;margin-bottom:10px">
+            <input type="email" id="nc-email" placeholder="Email">
+            <input type="tel" id="nc-phone" placeholder="Phone">
+          </div>
           <textarea id="nc-why" rows="2" placeholder="Why this relationship matters — what it's about" style="margin-bottom:10px"></textarea>
           <textarea id="nc-interests" rows="2" placeholder="Relevant deals, projects, shared interests" style="margin-bottom:10px"></textarea>
           <div class="g2" style="gap:10px;margin-bottom:12px">
@@ -3093,7 +3097,23 @@ function toggleShowOnToday(gi) {
 function setHabitStatus(catId, gi, val) {
   if (gi < 0 || !S.items[catId] || !S.items[catId][gi]) return;
   S.items[catId][gi].habitStatus = val;
-  saveState(); renderDashboard();
+  saveState();
+  renderDashboard();
+  // Update the status dot in place without full re-render
+  const HS_COLOR = {green:'#1A7A55', yellow:'#9A6500', red:'#8B2500'};
+  const HS_BG    = {green:'#E8F0EC', yellow:'#FDF5E6', red:'#FDF0EC'};
+  const displayEl = document.getElementById('item-display-' + gi);
+  if (displayEl) {
+    const dot = displayEl.querySelector('div[style*="border-radius:50%"]');
+    if (dot) dot.style.background = HS_COLOR[val];
+  }
+  // Update the select pill color
+  const select = document.querySelector(`.habit-status-select[onchange*="'${catId}',${gi},"]`);
+  if (select) {
+    select.style.borderColor = HS_COLOR[val];
+    select.style.background  = HS_BG[val];
+    select.style.color       = HS_COLOR[val];
+  }
 }
 
 function setCatNote(val) {
@@ -3756,6 +3776,8 @@ function saveNewContact() {
     company:   document.getElementById('nc-company').value.trim(),
     role:      document.getElementById('nc-role').value.trim(),
     howKnow:   document.getElementById('nc-how').value.trim(),
+    email:     document.getElementById('nc-email').value.trim(),
+    phone:     document.getElementById('nc-phone').value.trim(),
     why:       document.getElementById('nc-why').value.trim(),
     interests: document.getElementById('nc-interests').value.trim(),
     cadence:   document.getElementById('nc-cadence').value,
@@ -3768,7 +3790,7 @@ function saveNewContact() {
   S.contacts.push(c);
   saveState();
   // reset form
-  ['nc-name','nc-company','nc-role','nc-how','nc-why','nc-interests'].forEach(id => { document.getElementById(id).value = ''; });
+  ['nc-name','nc-company','nc-role','nc-how','nc-email','nc-phone','nc-why','nc-interests'].forEach(id => { document.getElementById(id).value = ''; });
   document.getElementById('addContactForm').style.display = 'none';
   renderCrm();
   showToast(name + ' added to your network');
@@ -3883,6 +3905,10 @@ function renderCrmDetail(c) {
       </div>
     </div>
 
+    <label style="${labSt}">Email</label>
+    <input type="email" value="${esc(c.email||'')}" placeholder="email@example.com" onchange="updateContact('email',this.value)" style="${inpSt}">
+    <label style="${labSt}">Phone</label>
+    <input type="tel" value="${esc(c.phone||'')}" placeholder="+1 (555) 000-0000" onchange="updateContact('phone',this.value)" style="${inpSt}">
     <label style="${labSt}">Role</label>
     <input type="text" value="${esc(c.role||'')}" placeholder="Role / title" onchange="updateContact('role',this.value)" style="${inpSt}">
     <label style="${labSt}">Company</label>
