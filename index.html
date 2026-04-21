@@ -265,31 +265,10 @@
     gap: 10px;
     padding: 8px 0;
     border-bottom: 1px solid var(--border);
-    position: relative;
   }
   .item-row:last-child { border-bottom: none; }
   #habitsToday .item-row:last-child { border-bottom: none; }
   #habitsToday { overflow: hidden; }
-  .drag-handle {
-    color: var(--text3);
-    cursor: grab;
-    font-size: 13px;
-    padding: 2px 2px 0;
-    flex-shrink: 0;
-    opacity: 0.35;
-    transition: opacity .15s;
-    user-select: none;
-    -webkit-user-select: none;
-  }
-  .drag-handle:hover { opacity: 1; }
-  .item-row.dragging { opacity: 0.4; background: var(--surface2); }
-  .item-row.drag-over { border-top: 2px solid var(--accent); }
-  .completed-section { margin-top: 6px; }
-  .completed-toggle {
-    font-size: 11px; color: var(--text3); background: none; border: none;
-    cursor: pointer; padding: 4px 0; font-family: 'DM Sans', sans-serif;
-    display: inline-flex; align-items: center; gap: 4px;
-  }
 
   .checkbox {
     width: 16px;
@@ -821,6 +800,67 @@
     #calDetail { width: 100% !important; }
   }
 
+
+  /* DAILY PRIORITIES */
+  .priority-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 0; border-bottom: 1px solid var(--border);
+  }
+  .priority-item:last-child { border-bottom: none; }
+  .priority-check {
+    width: 15px; height: 15px; border-radius: 3px;
+    border: 1.5px solid var(--border2); cursor: pointer;
+    flex-shrink: 0; transition: all .15s;
+    display: flex; align-items: center; justify-content: center;
+    margin-top: 1px;
+  }
+  .priority-check.done {
+    background: var(--accent); border-color: var(--accent);
+  }
+  .priority-check.done::after { content: '✓'; color: #fff; font-size: 9px; line-height: 1; }
+  .priority-input {
+    flex: 1; border: none; background: transparent;
+    font-size: 13px; color: var(--text); font-family: 'DM Sans', sans-serif;
+    outline: none; padding: 0; line-height: 1.4;
+  }
+  .priority-input.done { text-decoration: line-through; color: var(--text3); }
+  /* SCHEDULE */
+  #scheduleGrid {
+    position: relative;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .sched-row {
+    display: flex; align-items: stretch;
+    height: 24px; position: relative;
+  }
+  .sched-label {
+    font-size: 10px; color: var(--text3); width: 34px; flex-shrink: 0;
+    line-height: 1; font-weight: 500; padding-top: 2px; text-align: right;
+    padding-right: 6px;
+  }
+  .sched-slot {
+    flex: 1; border-left: 1px solid var(--border2);
+    cursor: pointer; position: relative; transition: background .1s;
+  }
+  .sched-slot.hour-top { border-top: 1px solid var(--border2); }
+  .sched-slot.half-top { border-top: 1px dashed var(--border); }
+  .sched-slot:hover { background: var(--accent-light); }
+  .sched-slot.selecting { background: rgba(43,77,63,0.15); }
+  .sched-block {
+    position: absolute; left: 1px; right: 2px;
+    background: var(--accent); border-radius: 4px;
+    padding: 1px 5px 0; font-size: 9.75px; color: #fff;
+    cursor: pointer; overflow: hidden; z-index: 2;
+    line-height: 1.2; box-shadow: 0 1px 4px rgba(0,0,0,.15);
+  }
+  .sched-block:hover { filter: brightness(1.1); }
+  .sched-block-title { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sched-block-link { font-size: 10px; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  @media (max-width: 768px) {
+    /* schedule shows on mobile, stacked naturally */
+  }
+
 </style>
 </head>
 <body>
@@ -946,15 +986,35 @@
 
       <!-- TODAY -->
       <div class="panel" id="panel-daily">
-        <div id="dailyDateHeader" style="margin-bottom:20px">
-          <div style="font-family:'DM Serif Display',serif;font-size:28px;line-height:1.15;color:var(--text)" id="dailyDateBig"></div>
-          <div style="font-size:13px;color:var(--text3);margin-top:3px" id="dailyDateSub"></div>
+        <div id="dailyDateHeader" style="position:sticky;top:0;z-index:50;background:var(--bg);padding:10px 0;margin-bottom:16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px">
+          <button onclick="navigateDay(-1)" id="dayNavPrev" style="padding:4px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface);cursor:pointer;font-size:16px;color:var(--text2);line-height:1;flex-shrink:0">‹</button>
+          <div style="flex:1">
+            <div style="font-family:'DM Serif Display',serif;font-size:26px;line-height:1.15;color:var(--text)" id="dailyDateBig"></div>
+            <div style="font-size:13px;color:var(--text3);margin-top:3px" id="dailyDateSub"></div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+            <button onclick="navigateDay(1)" id="dayNavNext" style="padding:4px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface);cursor:pointer;font-size:16px;color:var(--text2);line-height:1">›</button>
+            <button onclick="jumpToTodayView()" id="dayNavToday" style="display:none;padding:4px 10px;font-size:11px;border:1px solid var(--accent);border-radius:8px;background:var(--accent-light);cursor:pointer;color:var(--accent);font-family:'DM Sans',sans-serif;font-weight:500">Today</button>
+          </div>
         </div>
         <div class="g2">
           <div>
             <div class="card">
-              <div class="card-title">Morning intention</div>
-              <textarea id="intention" rows="3" placeholder="What matters most today? How do I want to show up?"></textarea>
+              <div class="card-title">Prepare — Top Priorities</div>
+              <div id="dailyPriorities">
+                <div class="priority-item" id="pri-row-0">
+                  <div class="priority-check" onclick="togglePriorityItem(0)" id="pri-check-0"></div>
+                  <input type="text" id="pri-text-0" placeholder="Priority 1..." oninput="savePriorityItem(0,this.value)" class="priority-input">
+                </div>
+                <div class="priority-item" id="pri-row-1">
+                  <div class="priority-check" onclick="togglePriorityItem(1)" id="pri-check-1"></div>
+                  <input type="text" id="pri-text-1" placeholder="Priority 2..." oninput="savePriorityItem(1,this.value)" class="priority-input">
+                </div>
+                <div class="priority-item" id="pri-row-2">
+                  <div class="priority-check" onclick="togglePriorityItem(2)" id="pri-check-2"></div>
+                  <input type="text" id="pri-text-2" placeholder="Priority 3..." oninput="savePriorityItem(2,this.value)" class="priority-input">
+                </div>
+              </div>
               <div class="flex mt8 gap4">
                 <span class="muted" style="font-size:12px">Energy:</span>
                 <div id="energyStars" class="flex gap4">
@@ -965,7 +1025,7 @@
 
             <div class="card">
               <div class="fbc mb12">
-                <div class="card-title" style="margin:0">Today's tasks</div>
+                <div class="card-title" style="margin:0" id="tasksCardTitle">Today's tasks</div>
                 <button class="btn btn-sm" onclick="toggleTaskForm()">+ Add task</button>
               </div>
 
@@ -1011,22 +1071,16 @@
               <div id="taskList"></div>
             </div>
 
-            <div class="card">
-              <div class="card-title">Tomorrow's top 3</div>
-              <input type="text" id="tm1" placeholder="1. Most important..." class="inp-gap">
-              <input type="text" id="tm2" placeholder="2." class="inp-gap">
-              <input type="text" id="tm3" placeholder="3.">
-            </div>
           </div>
 
           <div>
             <div class="card">
-              <div class="card-title">Habits today</div>
+              <div class="card-title" id="habitsCardTitle">Habits today</div>
               <div id="habitsToday"></div>
             </div>
 
             <div class="card">
-              <div class="card-title">Evening reflection</div>
+              <div class="card-title" id="reflectionCardTitle">Evening reflection</div>
               <textarea id="reflection" rows="4" placeholder="One win. One thing I'd do differently. How did I show up for what matters?"></textarea>
               <div class="flex mt8 gap4 fw">
                 <span class="muted" style="font-size:12px">Day rating:</span>
@@ -1036,7 +1090,16 @@
                 <button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="saveDay()">Save day</button>
               </div>
             </div>
+
+            <div class="card" style="padding:16px 14px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                <div class="card-title" style="margin:0">Schedule</div>
+                <button onclick="openNewBlockForm(8,10)" style="padding:3px 10px;font-size:12px;border:1px solid var(--border2);border-radius:6px;background:transparent;cursor:pointer;color:var(--text2);font-family:'DM Sans',sans-serif">+ Add</button>
+              </div>
+              <div id="dailySchedule"></div>
+            </div>
           </div>
+
         </div>
 
         <!-- Past entries divider -->
@@ -1176,7 +1239,6 @@
             <button class="btn btn-sm crm-filter" onclick="setCrmFilter('overdue',this)" style="border-color:#c0392b;color:#c0392b">Overdue</button>
             <button class="btn btn-sm crm-filter" onclick="setCrmFilter('soon',this)" style="border-color:#9A6500;color:#9A6500">Due soon</button>
             <button class="btn btn-sm crm-filter" onclick="setCrmFilter('recent',this)">Recently contacted</button>
-            <button class="btn btn-sm crm-filter" onclick="setCrmFilter('upcoming',this)" style="border-color:#1A5FA0;color:#1A5FA0">📅 Upcoming</button>
             <button class="btn btn-sm crm-filter" onclick="setCrmFilter('priority',this)" style="border-color:#e74c3c;color:#e74c3c">★ Priority</button>
           </div>
           <button class="btn btn-primary btn-sm" onclick="openAddContact()">+ Add contact</button>
@@ -1190,10 +1252,6 @@
           <div class="g2" style="gap:10px;margin-bottom:10px">
             <input type="text" id="nc-role" placeholder="Role / title">
             <input type="text" id="nc-how" placeholder="How you know them">
-          </div>
-          <div class="g2" style="gap:10px;margin-bottom:10px">
-            <input type="email" id="nc-email" placeholder="Email">
-            <input type="tel" id="nc-phone" placeholder="Phone">
           </div>
           <textarea id="nc-why" rows="2" placeholder="Why this relationship matters — what it's about" style="margin-bottom:10px"></textarea>
           <textarea id="nc-interests" rows="2" placeholder="Relevant deals, projects, shared interests" style="margin-bottom:10px"></textarea>
@@ -1375,6 +1433,13 @@
 </div><!-- /shell -->
 
 <script>
+const SCHED_START = 5;   // 5am
+const SCHED_END   = 24;  // 11pm
+const SLOT_PX     = 24;  // px per 30-min slot
+let schedDragStart = null;
+let schedDragCurrent = null;
+let schedDragging = false;
+
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
 const DEFAULT_CATS = [
@@ -1516,6 +1581,10 @@ let S = {
   items: JSON.parse(JSON.stringify(DEFAULTS)),
   tasks: [], habitLog: {}, energy: 0, dayRating: 0,
   intention: '', reflection: '', tm: ['','',''],
+  dailyPriorities: [{text:'',done:false},{text:'',done:false},{text:'',done:false}],
+  scheduleBlocks: [],   // legacy — migrated to dayData
+  scheduleDate: '',     // legacy
+  dayData: {},          // keyed by dateStr: {priorities, scheduleBlocks, reflection, energy, dayRating, tasks}
   journal: [], weeklyReviews: [], catNotes: {}, networkPings: {},
   contacts: JSON.parse(JSON.stringify(DEFAULT_CONTACTS)),
   customCats: null
@@ -1580,6 +1649,37 @@ function esc(s) {
 
 let currentView = 'dashboard';
 let activeCat = 'family';
+let viewingDate = null; // null = today; set to ISO date string when navigating
+
+function getViewingDate() {
+  return viewingDate || today();
+}
+
+function isViewingToday() {
+  return getViewingDate() === today();
+}
+
+function getDayData(dateStr) {
+  if (!S.dayData) S.dayData = {};
+  if (!S.dayData[dateStr]) {
+    S.dayData[dateStr] = {
+      priorities: [{text:'',done:false},{text:'',done:false},{text:'',done:false}],
+      scheduleBlocks: [],
+      reflection: '',
+      energy: 0,
+      dayRating: 0
+    };
+    // Migrate today's legacy data on first access
+    if (dateStr === today()) {
+      if (S.dailyPriorities) S.dayData[dateStr].priorities = S.dailyPriorities;
+      if (S.scheduleBlocks && S.scheduleBlocks.length) S.dayData[dateStr].scheduleBlocks = S.scheduleBlocks;
+      if (S.reflection) S.dayData[dateStr].reflection = S.reflection;
+      if (S.energy) S.dayData[dateStr].energy = S.energy;
+      if (S.dayRating) S.dayData[dateStr].dayRating = S.dayRating;
+    }
+  }
+  return S.dayData[dateStr];
+}
 
 const PANEL_TITLES = {
   dashboard: 'Dashboard',
@@ -1760,19 +1860,24 @@ function renderDashboard() {
     return 'ok';
   }
 
-  const overdue  = contacts.filter(c => contactStatus(c) === 'overdue' || contactStatus(c) === 'never');
-  const soon     = contacts.filter(c => contactStatus(c) === 'soon');
-  const priority = contacts.filter(c => c.isPriority && contactStatus(c) === 'ok');
-
-  // Upcoming meetings: scheduledMeeting within next 30 days
-  const upcoming = contacts.filter(c => {
+  function hasUpcomingMeeting(c) {
     if (!c.scheduledMeeting) return false;
-    const meetDate = new Date(c.scheduledMeeting + 'T12:00:00');
-    const diff = Math.floor((meetDate - now) / 86400000);
+    const diff = Math.floor((new Date(c.scheduledMeeting + 'T12:00:00') - now) / 86400000);
     return diff >= 0 && diff <= 30;
-  }).sort((a, b) => new Date(a.scheduledMeeting) - new Date(b.scheduledMeeting));
+  }
 
-  function crmRow(c, accentColor, rightLabel) {
+  const upcoming = contacts.filter(c => hasUpcomingMeeting(c))
+    .sort((a,b) => new Date(a.scheduledMeeting) - new Date(b.scheduledMeeting));
+
+  // Exclude contacts already in upcoming from other sections
+  const upcomingIds = new Set(upcoming.map(c => c.id));
+  const overdue  = contacts.filter(c => !upcomingIds.has(c.id) && (contactStatus(c) === 'overdue' || contactStatus(c) === 'never'));
+  const soon     = contacts.filter(c => !upcomingIds.has(c.id) && contactStatus(c) === 'soon');
+  const priority = contacts.filter(c => !upcomingIds.has(c.id) && c.isPriority && contactStatus(c) === 'ok');
+
+  function crmRow(c, accentColor) {
+    const ds = c.lastContact ? Math.floor((now - new Date(c.lastContact)) / 86400000) : null;
+    const daysLabel = ds === null ? 'never' : ds === 0 ? 'today' : ds + 'd ago';
     const initials = c.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
     return `<div onclick="openCrmDetail('${c.id}')" style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
       <div class="crm-avatar" style="width:28px;height:28px;font-size:11px;position:relative">
@@ -1783,45 +1888,40 @@ function renderDashboard() {
         <div style="font-size:12px;font-weight:500">${esc(c.name)}</div>
         <div style="font-size:10px;color:var(--text3)">${c.company||c.role||'—'}</div>
       </div>
-      <span style="font-size:10px;color:${accentColor};white-space:nowrap;font-weight:500">${rightLabel}</span>
+      <span style="font-size:10px;color:${accentColor};white-space:nowrap;font-weight:500">${daysLabel}</span>
     </div>`;
-  }
-
-  function crmSectionHeader(label, color) {
-    return `<div style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.07em;color:${color};margin:10px 0 5px;padding-bottom:3px;border-bottom:1px solid var(--border)">${label}</div>`;
   }
 
   let netHtml = '';
 
   if (upcoming.length) {
-    netHtml += crmSectionHeader('Upcoming meetings', '#1A5FA0');
+    netHtml += `<div style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.07em;color:#1A5FA0;margin-bottom:5px">Upcoming meetings (${upcoming.length})</div>`;
     netHtml += upcoming.slice(0,4).map(c => {
       const meetDate = new Date(c.scheduledMeeting + 'T12:00:00');
       const diff = Math.floor((meetDate - now) / 86400000);
       const label = diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : meetDate.toLocaleDateString('en-US',{month:'short',day:'numeric'});
-      return crmRow(c, '#1A5FA0', '📅 ' + label);
+      const initials = c.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+      return `<div onclick="openCrmDetail('${c.id}')" style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);cursor:pointer" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+        <div class="crm-avatar" style="width:28px;height:28px;font-size:11px">${initials}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:500">${esc(c.name)}</div>
+          <div style="font-size:10px;color:var(--text3)">${c.company||c.role||'—'}</div>
+        </div>
+        <span style="font-size:10px;color:#1A5FA0;white-space:nowrap;font-weight:500">📅 ${label}</span>
+      </div>`;
     }).join('');
   }
   if (overdue.length) {
-    netHtml += crmSectionHeader('Overdue', '#c0392b');
-    netHtml += overdue.slice(0,4).map(c => {
-      const ds = c.lastContact ? Math.floor((now - new Date(c.lastContact)) / 86400000) : null;
-      return crmRow(c, '#c0392b', ds === null ? 'never' : ds + 'd ago');
-    }).join('');
+    netHtml += `<div style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.07em;color:#c0392b;margin:${upcoming.length?'10px':'0'} 0 5px">Overdue (${overdue.length})</div>`;
+    netHtml += overdue.slice(0,4).map(c => crmRow(c, '#c0392b')).join('');
   }
   if (soon.length) {
-    netHtml += crmSectionHeader('Due soon', '#9A6500');
-    netHtml += soon.slice(0,3).map(c => {
-      const ds = c.lastContact ? Math.floor((now - new Date(c.lastContact)) / 86400000) : null;
-      return crmRow(c, '#9A6500', ds === null ? 'never' : ds + 'd ago');
-    }).join('');
+    netHtml += `<div style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.07em;color:#9A6500;margin:10px 0 5px">Due soon (${soon.length})</div>`;
+    netHtml += soon.slice(0,3).map(c => crmRow(c, '#9A6500')).join('');
   }
   if (priority.length) {
-    netHtml += crmSectionHeader('Priority', '#e74c3c');
-    netHtml += priority.slice(0,3).map(c => {
-      const ds = c.lastContact ? Math.floor((now - new Date(c.lastContact)) / 86400000) : null;
-      return crmRow(c, '#1A7A55', ds === null ? 'never' : ds + 'd ago');
-    }).join('');
+    netHtml += `<div style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.07em;color:#e74c3c;margin:10px 0 5px">Priority contacts</div>`;
+    netHtml += priority.slice(0,3).map(c => crmRow(c, '#1A7A55')).join('');
   }
   if (!upcoming.length && !overdue.length && !soon.length && !priority.length) {
     netHtml = '<div class="muted" style="font-size:13px">All contacts up to date.</div>';
@@ -1906,37 +2006,66 @@ function pingNet(name) {
 // ─── DAILY ───────────────────────────────────────────────────────────────────
 
 function renderDaily() {
-  const td = today();
+  try {
+  const vd = getViewingDate();
+  const isToday = isViewingToday();
+  const dayD = getDayData(vd);
+  const td = today(); // actual today
 
-  // Date header
-  const now = new Date();
-  const bigDate = now.toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric'});
-  const subDate = now.toLocaleDateString('en-US', {year:'numeric'}) +
-    ' · Week ' + getWeekNumber(now);
+  // Date header + nav buttons
+  const viewDate = new Date(vd + 'T12:00:00');
+  const bigDate = viewDate.toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric'});
+  const subDate = viewDate.toLocaleDateString('en-US', {year:'numeric'}) + ' · Week ' + getWeekNumber(viewDate);
   const bigEl = document.getElementById('dailyDateBig');
   const subEl = document.getElementById('dailyDateSub');
   if (bigEl) bigEl.textContent = bigDate;
   if (subEl) subEl.textContent = subDate;
+  // Prev button disabled if viewing today
+  const prevBtn = document.getElementById('dayNavPrev');
+  if (prevBtn) prevBtn.disabled = isToday;
+  if (prevBtn) prevBtn.style.opacity = isToday ? '0.3' : '1';
+  // Today button visible when not on today
+  const todayBtn = document.getElementById('dayNavToday');
+  if (todayBtn) todayBtn.style.display = isToday ? 'none' : 'inline-block';
+  // Update card titles for context
+  const tasksTitle = document.getElementById('tasksCardTitle');
+  if (tasksTitle) tasksTitle.textContent = isToday ? "Today's tasks" : viewDate.toLocaleDateString('en-US',{weekday:'long'}) + "'s tasks";
+  const habitsTitle = document.getElementById('habitsCardTitle');
+  if (habitsTitle) habitsTitle.textContent = isToday ? 'Habits today' : 'Habits';
+  const reflTitle = document.getElementById('reflectionCardTitle');
+  if (reflTitle) reflTitle.textContent = isToday ? 'Evening reflection' : 'Reflection / intention';
 
-  // restore saved values
-  const intention = document.getElementById('intention');
-  if (intention) intention.value = S.intention || '';
+  // Priorities — read-only if past, editable if today or future
+  const isPast = vd < td;
+  [0,1,2].forEach(i => {
+    const p = (dayD.priorities || [])[i] || {text:'',done:false};
+    const inp = document.getElementById('pri-text-' + i);
+    const chk = document.getElementById('pri-check-' + i);
+    if (inp) { inp.value = p.text || ''; inp.classList.toggle('done', !!p.done); inp.disabled = !!p.done || isPast; }
+    if (chk) chk.classList.toggle('done', !!p.done);
+    if (chk) chk.style.pointerEvents = isPast ? 'none' : '';
+  });
+
+  // Schedule
+  renderScheduleGrid();
+
   const reflection = document.getElementById('reflection');
-  if (reflection) reflection.value = S.reflection || '';
-  const tm1 = document.getElementById('tm1'); if(tm1) tm1.value = S.tm && S.tm[0] || '';
-  const tm2 = document.getElementById('tm2'); if(tm2) tm2.value = S.tm && S.tm[1] || '';
-  const tm3 = document.getElementById('tm3'); if(tm3) tm3.value = S.tm && S.tm[2] || '';
+  if (reflection) { reflection.value = dayD.reflection || ''; reflection.disabled = isPast; }
 
   // energy stars
   document.querySelectorAll('#energyStars .star').forEach(s => {
-    s.classList.toggle('on', parseInt(s.dataset.e) <= S.energy);
-    s.onclick = () => { S.energy = parseInt(s.dataset.e); saveState(); renderDaily(); };
+    s.classList.toggle('on', parseInt(s.dataset.e) <= (dayD.energy || 0));
+    s.onclick = isPast ? null : () => { dayD.energy = parseInt(s.dataset.e); saveState(); renderDaily(); };
+    s.style.opacity = isPast ? '0.5' : '1';
+    s.style.cursor  = isPast ? 'default' : 'pointer';
   });
 
   // day rating stars
   document.querySelectorAll('#dayStars .star').forEach(s => {
-    s.classList.toggle('on', parseInt(s.dataset.d) <= S.dayRating);
-    s.onclick = () => { S.dayRating = parseInt(s.dataset.d); saveState(); renderDaily(); };
+    s.classList.toggle('on', parseInt(s.dataset.d) <= (dayD.dayRating || 0));
+    s.onclick = isPast ? null : () => { dayD.dayRating = parseInt(s.dataset.d); saveState(); renderDaily(); };
+    s.style.opacity = isPast ? '0.5' : '1';
+    s.style.cursor  = isPast ? 'default' : 'pointer';
   });
 
   // habits — pull dynamically from all categories (only those pinned to Today)
@@ -1949,7 +2078,7 @@ function renderDaily() {
     });
   });
   const HS_COLOR = {green:'#1A7A55', yellow:'#9A6500', red:'#8B2500'};
-  const habitKey = (catId, idx) => td + '_habit_' + catId + '_' + idx;
+  const habitKey = (catId, idx) => vd + '_habit_' + catId + '_' + idx;
   document.getElementById('habitsToday').innerHTML = liveHabits.length
     ? liveHabits.map(({item, catId, catName, catColor, idx}, i) => {
         const hs = item.habitStatus || 'yellow';
@@ -1966,8 +2095,8 @@ function renderDaily() {
       }).join('')
     : '<div class="muted" style="padding:6px 0">No habits pinned to Today. Use the ◷ toggle in any habit to show it here.</div>';
 
-  // tasks
-  const todayTasks = (S.tasks || []).filter(t => t.date === td);
+  // tasks — show for viewing date
+  const todayTasks = (S.tasks || []).filter(t => t.date === vd);
   const priColors = {high:'#c0392b', med:'#9A6500', low:'#2D6E20'};
   const priBg     = {high:'#FDF0EC', med:'#FDF5E6', low:'#EAF3DE'};
   document.getElementById('taskList').innerHTML = todayTasks.length ? todayTasks.map(t => {
@@ -1989,6 +2118,7 @@ function renderDaily() {
   }).join('') : '<div class="muted" style="padding:6px 0">No tasks yet. Add one above.</div>';
 
   renderDailyHistory(dailyHistoryLimit);
+  } catch(e) { console.error('renderDaily error:', e.message, e.stack); showToast('Error loading Today tab: ' + e.message); }
 }
 
 let dailyHistoryLimit = 7;
@@ -2029,6 +2159,7 @@ function renderDailyHistory(limit) {
         ${entry.intention ? `<div style="margin-bottom:10px"><div style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:4px">Morning intention</div><div style="font-size:13px;line-height:1.6;color:var(--text2)">${esc(entry.intention)}</div></div>` : ''}
         ${entry.reflection ? `<div style="margin-bottom:10px"><div style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:4px">Evening reflection</div><div style="font-size:13px;line-height:1.6;color:var(--text2)">${esc(entry.reflection)}</div></div>` : ''}
         ${entry.tm && entry.tm.some(t=>t) ? `<div style="margin-bottom:10px"><div style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:4px">Tomorrow's top 3</div>${entry.tm.filter(t=>t).map(t=>`<div style="font-size:13px;color:var(--text2);padding:2px 0">• ${esc(t)}</div>`).join('')}</div>` : ''}
+        ${entry.scheduleBlocks && entry.scheduleBlocks.length ? `<div style="margin-bottom:10px"><div style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:4px">Schedule</div>${entry.scheduleBlocks.map(b=>`<div style="font-size:12px;color:var(--text2);padding:2px 0"><span style="color:var(--text3);margin-right:6px">${slotToTime(b.startSlot)}–${slotToTime(b.endSlot)}</span>${esc(b.title||'Untitled')}</div>`).join('')}</div>` : ''}
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
           <div style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:6px">Add a note</div>
           <textarea rows="2" placeholder="Reflection, context, follow-up thought..." onchange="saveDailyNote('${entry.date}',this.value)" style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--border2);border-radius:6px;background:var(--surface2);color:var(--text);font-family:'DM Sans',sans-serif;outline:none;resize:vertical;box-sizing:border-box">${esc(addedNote)}</textarea>
@@ -2059,6 +2190,26 @@ function toggleDailyEntry(id) {
 function saveDailyNote(dateStr, val) {
   const entry = (S.journal || []).find(j => j.tp === 'day' && j.date === dateStr);
   if (entry) { entry.addedNote = val; saveState(); }
+}
+
+function togglePriorityItem(i) {
+  const dayD = getDayData(getViewingDate());
+  if (!dayD.priorities) dayD.priorities = [{text:'',done:false},{text:'',done:false},{text:'',done:false}];
+  const p = dayD.priorities[i];
+  if (!p) return;
+  p.done = !p.done;
+  saveState();
+  const inp = document.getElementById('pri-text-' + i);
+  const chk = document.getElementById('pri-check-' + i);
+  if (inp) { inp.classList.toggle('done', p.done); inp.disabled = p.done; }
+  if (chk) chk.classList.toggle('done', p.done);
+}
+
+function savePriorityItem(i, val) {
+  const dayD = getDayData(getViewingDate());
+  if (!dayD.priorities) dayD.priorities = [{text:'',done:false},{text:'',done:false},{text:'',done:false}];
+  if (dayD.priorities[i]) dayD.priorities[i].text = val;
+  saveState();
 }
 
 function toggleHabit(id) {
@@ -2349,20 +2500,38 @@ function toggleTask(id) {
 }
 
 function saveDay() {
-  S.intention = document.getElementById('intention').value;
-  S.reflection = document.getElementById('reflection').value;
-  S.tm = [
-    document.getElementById('tm1').value,
-    document.getElementById('tm2').value,
-    document.getElementById('tm3').value
-  ];
-  const td = today();
+  const vd = getViewingDate();
+  const dayD = getDayData(vd);
+  dayD.reflection = document.getElementById('reflection').value;
   if (!S.journal) S.journal = [];
-  const idx = S.journal.findIndex(j => j.date === td && j.tp === 'day');
-  const entry = { date: td, tp:'day', intention: S.intention, reflection: S.reflection, energy: S.energy, rating: S.dayRating, tm: S.tm };
+  const idx = S.journal.findIndex(j => j.date === vd && j.tp === 'day');
+  const entry = {
+    date: vd, tp: 'day',
+    reflection: dayD.reflection,
+    energy: dayD.energy || 0,
+    rating: dayD.dayRating || 0,
+    scheduleBlocks: JSON.parse(JSON.stringify(dayD.scheduleBlocks || [])),
+    dailyPriorities: JSON.parse(JSON.stringify(dayD.priorities || []))
+  };
   if (idx >= 0) S.journal[idx] = entry; else S.journal.unshift(entry);
   saveState();
   showToast('Day saved!');
+}
+
+
+function navigateDay(dir) {
+  const current = new Date(getViewingDate() + 'T12:00:00');
+  current.setDate(current.getDate() + dir);
+  const newDate = current.toISOString().split('T')[0];
+  // Don't go before today
+  if (newDate < today()) return;
+  viewingDate = newDate === today() ? null : newDate;
+  renderDaily();
+}
+
+function jumpToTodayView() {
+  viewingDate = null;
+  renderDaily();
 }
 
 // ─── CATEGORIES ──────────────────────────────────────────────────────────────
@@ -2430,10 +2599,9 @@ function renderCatPanel() {
 
   function actionBtns(gi, item) {
     const pinned = item.showOnDash;
-    return `<div class="item-actions" style="display:flex;gap:3px;align-items:center;flex-shrink:0;flex-wrap:wrap">
+    return `<div class="item-actions" style="display:flex;gap:3px;align-items:center;flex-shrink:0">
       <button id="edit-btn-${gi}" onclick="toggleItemEdit(${gi})" title="Edit" style="padding:4px 9px;font-size:12px;border:1px solid var(--border2);border-radius:6px;background:transparent;cursor:pointer;color:var(--text3);font-family:'DM Sans',sans-serif">✎</button>
       <button id="dash-btn-${gi}" onclick="toggleShowOnDash(${gi})" title="${pinned?'Unpin from dashboard':'Pin to dashboard'}" style="padding:4px 9px;font-size:12px;border:1px solid ${pinned?'#1A7A55':'var(--border2)'};border-radius:6px;background:${pinned?'#E8F0EC':'transparent'};cursor:pointer;color:${pinned?'#1A7A55':'var(--text3)'};font-family:'DM Sans',sans-serif">◈</button>
-      ${moveToCatBtn(gi)}
       <button onclick="deleteCatItem(${gi})" title="Delete — permanently removes this item" style="padding:4px 9px;font-size:12px;border:1px solid var(--border2);border-radius:6px;background:transparent;cursor:pointer;color:#c0392b;font-family:'DM Sans',sans-serif">✕</button>
     </div>`;
   }
@@ -2441,11 +2609,10 @@ function renderCatPanel() {
   function habitActionBtns(gi, item) {
     const pinned = item.showOnDash;
     const onToday = item.showOnToday;
-    return `<div class="item-actions" style="display:flex;gap:3px;align-items:center;flex-shrink:0;flex-wrap:wrap">
+    return `<div class="item-actions" style="display:flex;gap:3px;align-items:center;flex-shrink:0">
       <button id="edit-btn-${gi}" onclick="toggleItemEdit(${gi})" title="Edit" style="padding:4px 9px;font-size:12px;border:1px solid var(--border2);border-radius:6px;background:transparent;cursor:pointer;color:var(--text3);font-family:'DM Sans',sans-serif">✎</button>
       <button id="dash-btn-${gi}" onclick="toggleShowOnDash(${gi})" title="${pinned?'Unpin from dashboard':'Pin to dashboard'}" style="padding:4px 9px;font-size:12px;border:1px solid ${pinned?'#1A7A55':'var(--border2)'};border-radius:6px;background:${pinned?'#E8F0EC':'transparent'};cursor:pointer;color:${pinned?'#1A7A55':'var(--text3)'};font-family:'DM Sans',sans-serif">◈</button>
       <button id="today-btn-${gi}" onclick="toggleShowOnToday(${gi})" title="${onToday?'Remove from Today tab':'Show on Today tab'}" style="padding:4px 9px;font-size:12px;border:1px solid ${onToday?'#1A5FA0':'var(--border2)'};border-radius:6px;background:${onToday?'#E6F1FB':'transparent'};cursor:pointer;color:${onToday?'#1A5FA0':'var(--text3)'};font-family:'DM Sans',sans-serif">◷</button>
-      ${moveToCatBtn(gi)}
       <button onclick="deleteCatItem(${gi})" title="Delete — permanently removes this item" style="padding:4px 9px;font-size:12px;border:1px solid var(--border2);border-radius:6px;background:transparent;cursor:pointer;color:#c0392b;font-family:'DM Sans',sans-serif">✕</button>
     </div>`;
   }
@@ -2637,79 +2804,14 @@ function renderCatPanel() {
     </div>`;
   }
 
-  // On load: move done items to bottom within each type group (in S.items)
-  let reordered = false;
-  TYPES.forEach(tp => {
-    if (!grouped[tp]) return;
-    const active = grouped[tp].filter(({item}) => item.s !== 'done');
-    const done   = grouped[tp].filter(({item}) => item.s === 'done');
-    if (done.length && active.length) {
-      // Re-order S.items so done items are after active within this type
-      const otherTypes = (S.items[activeCat] || []).filter((_, i) => {
-        const mapped = (['goal','aspiration','project'].includes((_=>(S.items[activeCat][i]||{}).tp||'task')()) ? 'goal'
-          : ((S.items[activeCat][i]||{}).tp === 'task' || (S.items[activeCat][i]||{}).tp === 'decision') ? 'task'
-          : (S.items[activeCat][i]||{}).tp === 'habit' ? 'habit'
-          : 'event');
-        return mapped !== tp;
-      });
-      // Rebuild this type's order: active first, done last
-      const reorderedType = [...active.map(x => x.item), ...done.map(x => x.item)];
-      // Rebuild full items array
-      const allItems = S.items[activeCat] || [];
-      const typeIndices = grouped[tp].map(x => x.gi);
-      typeIndices.forEach((origIdx, newPos) => {
-        allItems[origIdx] = reorderedType[newPos];
-      });
-      reordered = true;
-    }
-  });
-  if (reordered) { saveState(); }
-
-  // Re-group after potential reorder
-  const grouped2 = {};
-  (S.items[activeCat] || []).forEach((item, gi) => {
-    const tp = item.tp || 'task';
-    const mapped = (['goal','aspiration','project'].includes(tp)) ? 'goal'
-                 : (tp === 'task' || tp === 'decision' || tp === 'recurring') ? 'task'
-                 : (tp === 'habit') ? 'habit'
-                 : (tp === 'trip' || tp === 'event') ? 'event'
-                 : 'task';
-    if (!grouped2[mapped]) grouped2[mapped] = [];
-    grouped2[mapped].push({item, gi});
-  });
-
-  function dragHandle(gi, tp) {
-    return `<div class="drag-handle" draggable="true"
-      onmousedown="event.stopPropagation()"
-      ondragstart="dragStart(event,'${activeCat}',${gi},'${tp}')"
-      ondragend="dragEnd(event)"
-      title="Drag to reorder">☰</div>`;
-  }
-
-  function moveToCatBtn(gi) {
-    const opts = CATS.filter(c => c.id !== activeCat).map(c =>
-      `<option value="${c.id}">${esc(c.name)}</option>`
-    ).join('');
-    return `<select title="Move to category" onchange="moveToCat(${gi},this.value);this.value=''" style="padding:4px 6px;font-size:11px;border:1px solid var(--border2);border-radius:6px;background:transparent;cursor:pointer;color:var(--text3);font-family:'DM Sans',sans-serif;max-width:90px">
-      <option value="" disabled selected>→ Move</option>
-      ${opts}
-    </select>`;
-  }
-
   // Build sections
-  const sections = TYPES.filter(tp => grouped2[tp]).map(tp => {
-    const allInType = grouped2[tp];
-    const activeItems = allInType.filter(({item}) => item.s !== 'done');
-    const doneItems   = allInType.filter(({item}) => item.s === 'done');
-
-    const rows = activeItems.map(({item, gi}) => {
+  const sections = TYPES.filter(tp => grouped[tp]).map(tp => {
+    const rows = grouped[tp].map(({item, gi, origTp}) => {
 
       // ── GOAL ──
       if (tp === 'goal') {
         const pct = item.progress || 0;
-        return `<div class="item-row" data-gi="${gi}" data-tp="goal"
-          ondragover="dragOver(event)" ondrop="drop(event,'${activeCat}','goal')">
-          ${dragHandle(gi,'goal')}
+        return `<div class="item-row">
           <div style="flex:1;min-width:0">
             <div id="item-display-${gi}">
               <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px">
@@ -2760,9 +2862,7 @@ function renderCatPanel() {
       // ── HABIT / ROUTINE ──
       if (tp === 'habit') {
         const hs = item.habitStatus || 'yellow';
-        return `<div class="item-row" data-gi="${gi}" data-tp="habit"
-          ondragover="dragOver(event)" ondrop="drop(event,'${activeCat}','habit')">
-          ${dragHandle(gi,'habit')}
+        return `<div class="item-row">
           <div style="flex:1;min-width:0">
             <div id="item-display-${gi}">
               <div style="display:flex;align-items:center;gap:6px">
@@ -2789,9 +2889,7 @@ function renderCatPanel() {
       // ── EVENT / TRIP ──
       if (tp === 'event') {
         const sdotColor = item.s==='upcoming'?'#1A7A55':item.s==='done'?'#aaa':item.s==='unplanned'?'#c0392b':'#9A6500';
-        return `<div class="item-row" data-gi="${gi}" data-tp="event"
-          ondragover="dragOver(event)" ondrop="drop(event,'${activeCat}','event')">
-          ${dragHandle(gi,'event')}
+        return `<div class="item-row">
           <div class="sdot" style="background:${sdotColor};margin-top:4px;flex-shrink:0"></div>
           <div style="flex:1;min-width:0">
             <div id="item-display-${gi}">
@@ -2815,62 +2913,9 @@ function renderCatPanel() {
       return '';
     }).join('');
 
-    // Done items section
-    let doneHtml = '';
-    if (doneItems.length) {
-      const doneRows = doneItems.map(({item, gi}) => {
-        if (tp === 'goal') {
-          const pct = item.progress || 0;
-          return `<div class="item-row" style="opacity:.5">
-            ${dragHandle(gi,'goal')}
-            <div style="flex:1;min-width:0">
-              <div style="font-size:13px;text-decoration:line-through;color:var(--text3)">${esc(item.t)}</div>
-            </div>
-            <div class="item-controls" style="display:flex;gap:4px;align-items:center;margin-left:8px">
-              ${moveToCatBtn(gi)}
-              <button onclick="deleteCatItem(${gi})" style="padding:4px 9px;font-size:12px;border:1px solid var(--border2);border-radius:6px;background:transparent;cursor:pointer;color:#c0392b;font-family:'DM Sans',sans-serif">✕</button>
-            </div>
-          </div>`;
-        }
-        if (tp === 'task') {
-          return `<div class="item-row" style="opacity:.5">
-            ${dragHandle(gi,'task')}
-            <div class="checkbox done" style="margin-top:3px">✓</div>
-            <div style="flex:1;min-width:0"><div class="item-text done">${esc(item.t)}</div></div>
-            <div style="display:flex;gap:4px;align-items:center;margin-left:8px">
-              ${moveToCatBtn(gi)}
-              <button onclick="deleteCatItem(${gi})" style="padding:4px 9px;font-size:12px;border:1px solid var(--border2);border-radius:6px;background:transparent;cursor:pointer;color:#c0392b;font-family:'DM Sans',sans-serif">✕</button>
-            </div>
-          </div>`;
-        }
-        if (tp === 'event') {
-          return `<div class="item-row" style="opacity:.5">
-            ${dragHandle(gi,'event')}
-            <div class="sdot" style="background:#aaa;margin-top:4px;flex-shrink:0"></div>
-            <div style="flex:1;min-width:0"><div style="font-size:13px;text-decoration:line-through;color:var(--text3)">${esc(item.t)}</div></div>
-            <div style="display:flex;gap:4px;align-items:center;margin-left:8px">
-              ${moveToCatBtn(gi)}
-              <button onclick="deleteCatItem(${gi})" style="padding:4px 9px;font-size:12px;border:1px solid var(--border2);border-radius:6px;background:transparent;cursor:pointer;color:#c0392b;font-family:'DM Sans',sans-serif">✕</button>
-            </div>
-          </div>`;
-        }
-        return '';
-      }).join('');
-      const uid = tp + '_done_' + activeCat;
-      doneHtml = `<div class="completed-section">
-        <button class="completed-toggle" onclick="toggleDoneSection('${uid}')">
-          <span id="done-arrow-${uid}" style="font-size:8px;transition:transform .15s">&#9654;</span>
-          ${doneItems.length} completed
-        </button>
-        <div id="done-section-${uid}" style="display:none">${doneRows}</div>
-      </div>`;
-    }
-
-    const activeRows = rows.join ? rows.join('') : rows;
-    return `<div style="margin-bottom:20px" data-type-group="${tp}">
+    return `<div style="margin-bottom:20px">
       <div class="card-title">${TYPE_LABEL[tp]}</div>
-      <div data-drop-zone="${tp}">${activeRows || '<div class="muted" style="padding:6px 0;font-size:12px">None active.</div>'}</div>
-      ${doneHtml}
+      ${rows}
     </div>`;
   }).join('');
 
@@ -3125,23 +3170,7 @@ function toggleShowOnToday(gi) {
 function setHabitStatus(catId, gi, val) {
   if (gi < 0 || !S.items[catId] || !S.items[catId][gi]) return;
   S.items[catId][gi].habitStatus = val;
-  saveState();
-  renderDashboard();
-  // Update the status dot in place without full re-render
-  const HS_COLOR = {green:'#1A7A55', yellow:'#9A6500', red:'#8B2500'};
-  const HS_BG    = {green:'#E8F0EC', yellow:'#FDF5E6', red:'#FDF0EC'};
-  const displayEl = document.getElementById('item-display-' + gi);
-  if (displayEl) {
-    const dot = displayEl.querySelector('div[style*="border-radius:50%"]');
-    if (dot) dot.style.background = HS_COLOR[val];
-  }
-  // Update the select pill color
-  const select = document.querySelector(`.habit-status-select[onchange*="'${catId}',${gi},"]`);
-  if (select) {
-    select.style.borderColor = HS_COLOR[val];
-    select.style.background  = HS_BG[val];
-    select.style.color       = HS_COLOR[val];
-  }
+  saveState(); renderDashboard();
 }
 
 function setCatNote(val) {
@@ -3738,14 +3767,6 @@ function renderCrm() {
   if (crmFilter === 'soon')    filtered = contacts.filter(c => contactStatus(c) === 'soon');
   if (crmFilter === 'recent')   filtered = contacts.filter(c => contactStatus(c) === 'ok');
   if (crmFilter === 'priority') filtered = contacts.filter(c => c.isPriority);
-  if (crmFilter === 'upcoming') {
-    const nowTs = Date.now();
-    filtered = contacts.filter(c => {
-      if (!c.scheduledMeeting) return false;
-      const diff = Math.floor((new Date(c.scheduledMeeting + 'T12:00:00') - nowTs) / 86400000);
-      return diff >= 0 && diff <= 30;
-    }).sort((a,b) => new Date(a.scheduledMeeting) - new Date(b.scheduledMeeting));
-  }
 
   // Sort: overdue/never first, then by days since last contact desc
   filtered = filtered.slice().sort((a,b) => {
@@ -3786,11 +3807,10 @@ function renderCrm() {
             </div>
           </div>
           <div style="font-size:12px;color:var(--text2);margin-top:2px">${[c.role, c.company].filter(Boolean).join(' · ') || '—'}</div>
-          <div style="display:flex;align-items:center;gap:12px;margin-top:6px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:12px;margin-top:6px">
             <span style="font-size:11px;color:var(--text3)">${CADENCE_LABELS[c.cadence]||c.cadence}</span>
             <span style="font-size:11px;color:var(--text3)">Last: ${daysLabel}</span>
             ${c.nextContact ? `<span style="font-size:11px;color:var(--accent)">Next: ${esc(c.nextContact)}</span>` : ''}
-            ${c.scheduledMeeting ? `<span style="font-size:11px;color:#1A5FA0;font-weight:500">📅 ${new Date(c.scheduledMeeting+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>` : ''}
           </div>
           ${c.why ? `<div style="font-size:12px;color:var(--text3);margin-top:4px;font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.why)}</div>` : ''}
         </div>
@@ -3813,8 +3833,6 @@ function saveNewContact() {
     company:   document.getElementById('nc-company').value.trim(),
     role:      document.getElementById('nc-role').value.trim(),
     howKnow:   document.getElementById('nc-how').value.trim(),
-    email:     document.getElementById('nc-email').value.trim(),
-    phone:     document.getElementById('nc-phone').value.trim(),
     why:       document.getElementById('nc-why').value.trim(),
     interests: document.getElementById('nc-interests').value.trim(),
     cadence:   document.getElementById('nc-cadence').value,
@@ -3827,7 +3845,7 @@ function saveNewContact() {
   S.contacts.push(c);
   saveState();
   // reset form
-  ['nc-name','nc-company','nc-role','nc-how','nc-email','nc-phone','nc-why','nc-interests'].forEach(id => { document.getElementById(id).value = ''; });
+  ['nc-name','nc-company','nc-role','nc-how','nc-why','nc-interests'].forEach(id => { document.getElementById(id).value = ''; });
   document.getElementById('addContactForm').style.display = 'none';
   renderCrm();
   showToast(name + ' added to your network');
@@ -3922,14 +3940,6 @@ function renderCrmDetail(c) {
         </div>
       </div>
       <div style="margin-top:8px">
-        <label style="${labSt}">Scheduled meeting</label>
-        <div style="display:flex;gap:6px;align-items:center">
-          <input type="date" id="cd-meeting" value="${c.scheduledMeeting||''}" onchange="updateContact('scheduledMeeting',this.value)" style="${inpSt};flex:1;${c.scheduledMeeting?'border-color:#1A5FA0;background:#E6F1FB;':''}" placeholder="Schedule a future meeting">
-          ${c.scheduledMeeting ? `<button onclick="clearMeeting('${c.id}')" title="Clear meeting" style="padding:6px 10px;border:1px solid var(--border2);border-radius:8px;background:transparent;cursor:pointer;color:var(--text3);font-size:12px;font-family:'DM Sans',sans-serif;white-space:nowrap;flex-shrink:0">✕ Clear</button>` : ''}
-        </div>
-        ${c.scheduledMeeting ? `<div style="font-size:11px;color:#1A5FA0;margin-top:3px;font-weight:500">📅 Meeting scheduled</div>` : ''}
-      </div>
-      <div style="margin-top:8px">
         <label style="${labSt}">Next follow-up</label>
         <input type="text" id="cd-next" value="${esc(c.nextContact||'')}" placeholder="e.g. Mid-May, Jun 1..." onchange="updateContact('nextContact',this.value)" style="${inpSt}">
       </div>
@@ -3950,10 +3960,6 @@ function renderCrmDetail(c) {
       </div>
     </div>
 
-    <label style="${labSt}">Email</label>
-    <input type="email" value="${esc(c.email||'')}" placeholder="email@example.com" onchange="updateContact('email',this.value)" style="${inpSt}">
-    <label style="${labSt}">Phone</label>
-    <input type="tel" value="${esc(c.phone||'')}" placeholder="+1 (555) 000-0000" onchange="updateContact('phone',this.value)" style="${inpSt}">
     <label style="${labSt}">Role</label>
     <input type="text" value="${esc(c.role||'')}" placeholder="Role / title" onchange="updateContact('role',this.value)" style="${inpSt}">
     <label style="${labSt}">Company</label>
@@ -4008,17 +4014,6 @@ function clearLastContact(id) {
   renderCrmDetail(c);
   renderCrm();
   showToast('Last contacted date cleared');
-}
-
-function clearMeeting(id) {
-  const c = (S.contacts||[]).find(x => x.id === id);
-  if (!c) return;
-  c.scheduledMeeting = null;
-  saveState();
-  renderCrmDetail(c);
-  renderCrm();
-  renderDashboard();
-  showToast('Meeting cleared');
 }
 
 function addLogEntry(id) {
@@ -4087,80 +4082,342 @@ Please surface:
 
 
 
-// ─── DRAG AND DROP + MOVE TO CATEGORY ────────────────────────────────────────
+// ─── INTERACTIVE SCHEDULE ────────────────────────────────────────────────────
 
-let dragSrcCat = null;
-let dragSrcGi  = null;
-let dragSrcTp  = null;
-
-function dragStart(e, catId, gi, tp) {
-  dragSrcCat = catId;
-  dragSrcGi  = gi;
-  dragSrcTp  = tp;
-  e.dataTransfer.effectAllowed = 'move';
-  e.dataTransfer.setData('text/plain', gi);
-  setTimeout(() => {
-    const row = e.target.closest('.item-row');
-    if (row) row.classList.add('dragging');
-  }, 0);
+function slotToTime(slot) {
+  const totalMins = (SCHED_START * 60) + (slot * 30);
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  const label = h === 12 ? '12:' + (m === 0 ? '00' : m) + 'pm'
+    : h > 12 ? (h-12) + ':' + (m === 0 ? '00' : m) + 'pm'
+    : h + ':' + (m === 0 ? '00' : m) + 'am';
+  return label;
 }
 
-function dragEnd(e) {
-  document.querySelectorAll('.item-row.dragging').forEach(r => r.classList.remove('dragging'));
-  document.querySelectorAll('.item-row.drag-over').forEach(r => r.classList.remove('drag-over'));
+function slotLabel(slot) {
+  // Only show label at hour boundaries (every 2 slots)
+  if (slot % 2 !== 0) return '';
+  const h = SCHED_START + (slot / 2);
+  return h === 12 ? '12pm' : h > 12 ? (h-12) + 'pm' : h + 'am';
 }
 
-function dragOver(e) {
-  e.preventDefault();
-  e.dataTransfer.dropEffect = 'move';
-  const row = e.target.closest('.item-row');
-  document.querySelectorAll('.item-row.drag-over').forEach(r => r.classList.remove('drag-over'));
-  if (row && row !== document.querySelector('.item-row.dragging')) {
-    row.classList.add('drag-over');
-  }
-}
-
-function drop(e, catId, tp) {
-  e.preventDefault();
-  document.querySelectorAll('.item-row.drag-over').forEach(r => r.classList.remove('drag-over'));
-  if (!dragSrcCat || dragSrcTp !== tp || dragSrcCat !== catId) return;
-
-  const targetRow = e.target.closest('.item-row');
-  if (!targetRow) return;
-  const targetGi = parseInt(targetRow.dataset.gi);
-  if (isNaN(targetGi) || targetGi === dragSrcGi) return;
-
-  // Reorder within S.items
-  const items = S.items[catId];
-  if (!items) return;
-  const srcItem = items.splice(dragSrcGi, 1)[0];
-  // Adjust target index after splice
-  const adjustedTarget = targetGi > dragSrcGi ? targetGi - 1 : targetGi;
-  items.splice(adjustedTarget, 0, srcItem);
-  saveState();
-  renderCatPanel();
-}
-
-function moveToCat(gi, targetCatId) {
-  if (!targetCatId || targetCatId === activeCat) return;
-  const items = S.items[activeCat];
-  if (!items || !items[gi]) return;
-  const item = items.splice(gi, 1)[0];
-  if (!S.items[targetCatId]) S.items[targetCatId] = [];
-  S.items[targetCatId].push(item);
-  saveState();
-  renderCatPanel();
-  const targetName = (CATS.find(c => c.id === targetCatId) || {}).name || targetCatId;
-  showToast(`Moved to ${targetName}`);
-}
-
-function toggleDoneSection(uid) {
-  const el = document.getElementById('done-section-' + uid);
-  const arrow = document.getElementById('done-arrow-' + uid);
+function renderScheduleGrid() {
+  const el = document.getElementById('dailySchedule');
   if (!el) return;
-  const isOpen = el.style.display !== 'none';
-  el.style.display = isOpen ? 'none' : 'block';
-  if (arrow) arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
+  const totalSlots = (SCHED_END - SCHED_START) * 2; // 38 slots
+
+  let html = `<div id="scheduleGrid" style="position:relative">`;
+
+  // Build slot rows
+  for (let s = 0; s < totalSlots; s++) {
+    const isHourTop = s % 2 === 0;
+    const label = slotLabel(s);
+    html += `<div class="sched-row">
+      <div class="sched-label">${label}</div>
+      <div class="sched-slot ${isHourTop ? 'hour-top' : 'half-top'}" data-slot="${s}"
+        onmousedown="schedMouseDown(event,${s})"
+        onmousemove="schedMouseMove(event,${s})"
+        onmouseup="schedMouseUp(event,${s})">
+      </div>
+    </div>`;
+  }
+  html += `</div>`;
+  el.innerHTML = html;
+
+  // Add touch listeners at grid level (mobile: press-duration tap)
+  const grid = el.querySelector('#scheduleGrid');
+  if (grid) {
+    grid.addEventListener('touchstart', schedTouchStartGrid, {passive: true});
+    grid.addEventListener('touchend',   schedTouchEndGrid,   {passive: true});
+    grid.addEventListener('touchmove',  schedTouchMoveGrid,  {passive: true});
+  }
+
+  // Render existing blocks
+  renderScheduleBlocks();
+}
+
+function renderScheduleBlocks() {
+  const grid = document.getElementById('scheduleGrid');
+  if (!grid) return;
+  // Remove existing block divs
+  grid.querySelectorAll('.sched-block').forEach(b => b.remove());
+
+  const blocks = getDayData(getViewingDate()).scheduleBlocks || [];
+
+  // Detect overlaps and assign columns
+  const columns = []; // each column is array of block ids
+  const blockCols = {}; // blockId -> {col, totalCols}
+
+  blocks.forEach(block => {
+    // Find the first column where this block fits (no overlap)
+    let placed = false;
+    for (let c = 0; c < columns.length; c++) {
+      const colBlocks = columns[c];
+      const overlaps = colBlocks.some(bid => {
+        const b = blocks.find(x => x.id === bid);
+        return b && block.startSlot < b.endSlot && block.endSlot > b.startSlot;
+      });
+      if (!overlaps) {
+        columns[c].push(block.id);
+        blockCols[block.id] = c;
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) {
+      columns.push([block.id]);
+      blockCols[block.id] = columns.length - 1;
+    }
+  });
+
+  // Calculate total columns needed per block (max overlap depth)
+  const blockTotalCols = {};
+  blocks.forEach(block => {
+    let maxCol = blockCols[block.id];
+    blocks.forEach(other => {
+      if (other.id !== block.id &&
+          block.startSlot < other.endSlot && block.endSlot > other.startSlot) {
+        maxCol = Math.max(maxCol, blockCols[other.id]);
+      }
+    });
+    blockTotalCols[block.id] = maxCol + 1;
+  });
+
+  blocks.forEach(block => {
+    const topPx  = block.startSlot * SLOT_PX;
+    const slots  = block.endSlot - block.startSlot;
+    const linked = block.linkedCatId
+      ? (S.items[block.linkedCatId] || [])[block.linkedGi]
+      : null;
+    const height = Math.max(slots, 1) * SLOT_PX;
+    const timeLabel = slotToTime(block.startSlot) + ' – ' + slotToTime(block.endSlot);
+
+    // Calculate left/right positions for side-by-side layout
+    const col = blockCols[block.id] || 0;
+    const totalCols = blockTotalCols[block.id] || 1;
+    const gridLeft = 35; // label width
+    const gridWidth = `calc(100% - ${gridLeft}px)`;
+    const colW = 100 / totalCols;
+    const leftPct = gridLeft + col * (colW / 100) * 1; // approximate
+    const leftStyle = `calc(${gridLeft}px + ${col * colW}% - ${col * gridLeft / totalCols}px)`;
+    const rightStyle = `calc(${(totalCols - col - 1) * colW}% + ${(totalCols - col - 1) * gridLeft / totalCols}px + 2px)`;
+    const opacity = totalCols > 1 && col > 0 ? '0.82' : '1';
+
+    const div = document.createElement('div');
+    div.className = 'sched-block';
+    div.style.cssText = `top:${topPx}px;height:${height}px;left:${leftStyle};right:${rightStyle};position:absolute;opacity:${opacity};`;
+    div.innerHTML = `
+      <div style="font-size:9.75px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.2">
+        ${esc(block.title || 'Untitled')}${linked ? `<span style="font-weight:400;opacity:.85"> · ${esc(linked.t)}</span>` : ''}
+      </div>
+      <div style="font-size:9px;opacity:.75;margin-top:1px;line-height:1">${timeLabel}</div>`;
+    div.onclick = (e) => { e.stopPropagation(); openSchedBlockEditor(block.id); };
+    div.onmousedown = (e) => { e.stopPropagation(); };
+    div.ontouchstart = (e) => { e.stopPropagation(); };
+    grid.appendChild(div);
+  });
+}
+
+// ── Desktop: drag to create ──────────────────────────────────────────────────
+
+function schedMouseDown(e, slot) {
+  e.preventDefault();
+  schedDragStart = slot;
+  schedDragCurrent = slot;
+  schedDragging = true;
+  highlightDragRange(slot, slot);
+}
+
+function schedMouseMove(e, slot) {
+  if (!schedDragging) return;
+  schedDragCurrent = slot;
+  highlightDragRange(schedDragStart, slot);
+}
+
+function schedMouseUp(e, slot) {
+  if (!schedDragging) return;
+  schedDragging = false;
+  clearDragHighlight();
+  const startSlot = Math.min(schedDragStart, slot);
+  const endSlot   = Math.max(schedDragStart, slot) + 1;
+  // Require minimum 1 slot drag to prevent accidental single-click triggers
+  if (endSlot - startSlot < 1) return;
+  openNewBlockForm(startSlot, endSlot);
+}
+
+// ── Mobile: press-duration tap (150ms) to avoid scroll conflicts ─────────────
+
+let touchPressTimer = null;
+let touchPressSlot  = null;
+let touchMoved      = false;
+const TOUCH_PRESS_MS = 150;
+
+function slotFromTouch(e) {
+  const touch = e.changedTouches[0] || e.touches[0];
+  if (!touch) return null;
+  const el = document.elementFromPoint(touch.clientX, touch.clientY);
+  if (!el) return null;
+  const slot = el.closest ? el.closest('[data-slot]') : null;
+  return slot ? parseInt(slot.dataset.slot) : null;
+}
+
+function schedTouchStartGrid(e) {
+  touchMoved = false;
+  touchPressSlot = slotFromTouch(e);
+  if (touchPressSlot === null) return;
+  touchPressTimer = setTimeout(() => {
+    if (!touchMoved && touchPressSlot !== null) {
+      // Deliberate tap — open form with this slot pre-filled
+      const start = touchPressSlot;
+      const end   = Math.min(start + 2, (SCHED_END - SCHED_START) * 2); // default 1hr
+      openNewBlockForm(start, end);
+    }
+  }, TOUCH_PRESS_MS);
+}
+
+function schedTouchMoveGrid(e) {
+  // If finger moves, cancel the press — user is scrolling
+  touchMoved = true;
+  if (touchPressTimer) { clearTimeout(touchPressTimer); touchPressTimer = null; }
+}
+
+function schedTouchEndGrid(e) {
+  if (touchPressTimer) { clearTimeout(touchPressTimer); touchPressTimer = null; }
+  touchPressSlot = null;
+  touchMoved = false;
+}
+
+function highlightDragRange(a, b) {
+  const start = Math.min(a, b), end = Math.max(a, b);
+  document.querySelectorAll('.sched-slot').forEach(s => {
+    const sl = parseInt(s.dataset.slot);
+    s.classList.toggle('selecting', sl >= start && sl <= end);
+  });
+}
+
+function clearDragHighlight() {
+  document.querySelectorAll('.sched-slot.selecting').forEach(s => s.classList.remove('selecting'));
+}
+
+let editingBlockId = null;
+
+function openNewBlockForm(startSlot, endSlot) {
+  editingBlockId = null;
+  showSchedModal('', startSlot, endSlot, null, null);
+}
+
+function openSchedBlockEditor(id) {
+  const blocks = getDayData(getViewingDate()).scheduleBlocks || [];
+  const block = blocks.find(b => b.id === id || b.id === parseInt(id) || String(b.id) === String(id));
+  if (!block) return;
+  editingBlockId = id;
+  showSchedModal(block.title, block.startSlot, block.endSlot, block.linkedCatId, block.linkedGi);
+}
+
+function showSchedModal(title, startSlot, endSlot, linkedCatId, linkedGi) {
+  let modal = document.getElementById('schedModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'schedModal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+    modal.onclick = (e) => { if (e.target === modal) closeSchedModal(); };
+    document.body.appendChild(modal);
+  }
+
+  // Build time slot options (every 30 min, 5am–11pm)
+  const totalSlots = (SCHED_END - SCHED_START) * 2;
+  let startOpts = '', endOpts = '';
+  for (let s = 0; s < totalSlots; s++) {
+    const t = slotToTime(s);
+    startOpts += `<option value="${s}" ${s === startSlot ? 'selected' : ''}>${t}</option>`;
+  }
+  for (let s = 1; s <= totalSlots; s++) {
+    const t = slotToTime(s);
+    endOpts += `<option value="${s}" ${s === endSlot ? 'selected' : ''}>${t}</option>`;
+  }
+
+  // Build linked item options
+  let linkedOpts = '<option value="">None</option>';
+  CATS.forEach(cat => {
+    const items = (S.items[cat.id] || []).filter(i => i.s !== 'done');
+    if (items.length) {
+      linkedOpts += `<optgroup label="${esc(cat.name)}">`;
+      items.forEach((item, gi) => {
+        const selected = linkedCatId === cat.id && linkedGi === gi ? 'selected' : '';
+        linkedOpts += `<option value="${cat.id}|${gi}" ${selected}>${esc(item.t)}</option>`;
+      });
+      linkedOpts += '</optgroup>';
+    }
+  });
+
+  const isEdit = editingBlockId !== null;
+  const inpSt = 'width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface);color:var(--text);font-family:\'DM Sans\',sans-serif;font-size:13px;outline:none;box-sizing:border-box';
+  modal.innerHTML = `<div style="background:var(--surface);border-radius:12px;padding:24px;max-width:380px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.18)">
+    <div style="font-size:15px;font-weight:500;margin-bottom:16px">${isEdit ? 'Edit block' : 'New block'}</div>
+    <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Title</label>
+    <input type="text" id="schedTitle" value="${esc(title)}" placeholder="What are you doing?"
+      style="${inpSt};margin-bottom:12px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+      <div>
+        <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Start time</label>
+        <select id="schedStart" style="${inpSt}">${startOpts}</select>
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">End time</label>
+        <select id="schedEnd" style="${inpSt}">${endOpts}</select>
+      </div>
+    </div>
+    <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:4px">Link to item (optional)</label>
+    <select id="schedLinked" style="${inpSt};margin-bottom:${isEdit && linkedCatId ? '8px' : '20px'}">
+      ${linkedOpts}
+    </select>
+    ${isEdit && linkedCatId !== null ? `<button onclick="closeSchedModal();jumpToItem('${linkedCatId}',${linkedGi})" style="width:100%;padding:7px;border:1px solid var(--accent);border-radius:8px;background:var(--accent-light);cursor:pointer;font-size:12px;font-family:'DM Sans',sans-serif;color:var(--accent);font-weight:500;margin-bottom:14px">→ Go to linked item</button>` : ''}
+    <div style="display:flex;gap:8px">
+      <button onclick="saveSchedBlock()" style="flex:1;padding:9px;border:none;border-radius:8px;background:var(--accent);color:#fff;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;font-weight:500">${isEdit ? 'Save' : 'Add block'}</button>
+      ${isEdit ? `<button onclick="deleteSchedBlock('${editingBlockId}')" style="padding:9px 14px;border:1px solid #c0392b;border-radius:8px;background:transparent;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;color:#c0392b">Delete</button>` : ''}
+      <button onclick="closeSchedModal()" style="padding:9px 14px;border:1px solid var(--border2);border-radius:8px;background:transparent;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;color:var(--text2)">Cancel</button>
+    </div>
+  </div>`;
+
+  modal.style.display = 'flex';
+  setTimeout(() => { const inp = document.getElementById('schedTitle'); if(inp) inp.focus(); }, 50);
+}
+
+function saveSchedBlock() {
+  const title = document.getElementById('schedTitle').value.trim();
+  const startSlot = parseInt(document.getElementById('schedStart').value);
+  const endSlot   = parseInt(document.getElementById('schedEnd').value);
+  if (endSlot <= startSlot) { showToast('End time must be after start time'); return; }
+  const linkedVal = document.getElementById('schedLinked').value;
+  let linkedCatId = null, linkedGi = null;
+  if (linkedVal) { const parts = linkedVal.split('|'); linkedCatId = parts[0]; linkedGi = parseInt(parts[1]); }
+
+  const dayD = getDayData(getViewingDate());
+  if (!dayD.scheduleBlocks) dayD.scheduleBlocks = [];
+
+  if (editingBlockId) {
+    const block = dayD.scheduleBlocks.find(b => String(b.id) === String(editingBlockId));
+    if (block) { block.title = title; block.startSlot = startSlot; block.endSlot = endSlot; block.linkedCatId = linkedCatId; block.linkedGi = linkedGi; }
+  } else {
+    dayD.scheduleBlocks.push({ id: Date.now(), startSlot, endSlot, title, linkedCatId, linkedGi });
+  }
+  saveState();
+  closeSchedModal();
+  renderScheduleBlocks();
+}
+
+function deleteSchedBlock(id) {
+  const dayD = getDayData(getViewingDate());
+  dayD.scheduleBlocks = (dayD.scheduleBlocks || []).filter(b => String(b.id) !== String(id));
+  saveState();
+  closeSchedModal();
+  renderScheduleBlocks();
+}
+
+function closeSchedModal() {
+  const modal = document.getElementById('schedModal');
+  if (modal) modal.style.display = 'none';
+  editingBlockId = null;
 }
 
 // ─── MANAGE CATEGORIES ───────────────────────────────────────────────────────
@@ -4284,28 +4541,9 @@ window.parseDateRange = function parseDateRange(str) {
     str = str.trim();
     const MONTHS = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
     const yr = new Date().getFullYear();
-    // ISO: 2026-04-26
     if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
       const d = new Date(str + 'T12:00:00');
       return {start: d, end: d};
-    }
-    // Numeric: 4/22, 4/22/26, 4/22/2026
-    const numeric = str.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
-    if (numeric) {
-      let y = numeric[3] ? parseInt(numeric[3]) : yr;
-      if (y < 100) y += 2000;
-      const d = new Date(y, parseInt(numeric[1]) - 1, parseInt(numeric[2]), 12);
-      return {start: d, end: d};
-    }
-    // Numeric range: 4/22 - 4/26
-    const numRange = str.match(/^(\d{1,2})\/(\d{1,2})\s*[-\u2013]\s*(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
-    if (numRange) {
-      let y = numRange[5] ? parseInt(numRange[5]) : yr;
-      if (y < 100) y += 2000;
-      return {
-        start: new Date(y, parseInt(numRange[1]) - 1, parseInt(numRange[2]), 12),
-        end:   new Date(y, parseInt(numRange[3]) - 1, parseInt(numRange[4]), 12)
-      };
     }
     const xMonth = str.match(/^([a-z]+)\s+(\d{1,2})\s*[-\u2013]\s*([a-z]+)\s+(\d{1,2})(?:\s+(\d{4}))?$/i);
     if (xMonth) {
@@ -4516,20 +4754,6 @@ function buildCalEvents() {
         });
       }
     }
-    // Scheduled meeting if set
-    if (c.scheduledMeeting) {
-      const date = new Date(c.scheduledMeeting + 'T12:00:00');
-      events.push({
-        date,
-        dateStr: c.scheduledMeeting,
-        label: '📅 Meeting: ' + c.name,
-        color: '#1A5FA0',
-        type: 'crm',
-        contactId: c.id,
-        catName: 'Network',
-        source: 'crm'
-      });
-    }
     // Overdue — show on today
     if (c.lastContact) {
       const days = CADENCE_DAYS_CAL[c.cadence] || 90;
@@ -4548,7 +4772,17 @@ function buildCalEvents() {
         });
       }
     } else if (!c.lastContact && c.cadence) {
-      // Never contacted — intentionally not shown on calendar
+      // Never contacted — show on today
+      events.push({
+        date: new Date(),
+        dateStr: todayStr,
+        label: 'Never contacted: ' + c.name,
+        color: '#c0392b',
+        type: 'crm-overdue',
+        contactId: c.id,
+        catName: 'Network',
+        source: 'crm'
+      });
     }
   });
 
