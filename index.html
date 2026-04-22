@@ -832,7 +832,7 @@
   }
   .sched-row {
     display: flex; align-items: stretch;
-    height: 24px; position: relative;
+    height: 12px; position: relative;
   }
   .sched-label {
     font-size: 10px; color: var(--text3); width: 34px; flex-shrink: 0;
@@ -845,7 +845,7 @@
   }
   .sched-slot.hour-top { border-top: 1px solid var(--border2); }
   .sched-slot.half-top { border-top: 1px dashed var(--border); }
-  .sched-slot.quarter-top { border-top: 1px dotted rgba(0,0,0,0.06); }
+  .sched-slot.quarter-top { border-top: none; }
   .sched-slot:hover { background: var(--accent-light); }
   .sched-slot.selecting { background: rgba(43,77,63,0.15); }
   .sched-block {
@@ -1436,7 +1436,7 @@
 <script>
 const SCHED_START = 5;   // 5am
 const SCHED_END   = 24;  // 11pm
-const SLOT_PX     = 12;  // px per 15-min slot
+const SLOT_PX     = 12;  // px per 15-min slot (30-min block = 2 slots = 24px)
 const SLOT_MINS   = 15;  // minutes per slot
 let schedDragStart = null;
 let schedDragCurrent = null;
@@ -1604,6 +1604,12 @@ function loadState() {
       if (!S.contacts || !S.contacts.length) S.contacts = JSON.parse(JSON.stringify(DEFAULT_CONTACTS));
     }
   } catch(e) {}
+  // Auto-apply status for habits with autoMode on
+  CATS.forEach(c => {
+    (S.items[c.id] || []).forEach((item, gi) => {
+      if (item.tp === 'habit' && item.habitAutoMode) applyAutoStatusSilent(c.id, gi);
+    });
+  });
   // Migrate: remap legacy types to 4 canonical types, seed defaults
   CATS.forEach(c => {
     (S.items[c.id] || []).forEach(item => {
@@ -1682,6 +1688,17 @@ function getDayData(dateStr) {
       if (S.energy) S.dayData[dateStr].energy = S.energy;
       if (S.dayRating) S.dayData[dateStr].dayRating = S.dayRating;
     }
+  }
+  // Migrate blocks saved with 30-min slot numbers to 15-min slot numbers
+  // A block is in 30-min format if its slots are suspiciously small (max slot for 30-min = 38, for 15-min = 76)
+  const blocks = S.dayData[dateStr].scheduleBlocks || [];
+  if (blocks.length && !S.dayData[dateStr]._slotsConverted) {
+    const maxPossible30min = (SCHED_END - SCHED_START) * 2; // 38
+    const needsConvert = blocks.some(b => b.endSlot <= maxPossible30min);
+    if (needsConvert) {
+      blocks.forEach(b => { b.startSlot = b.startSlot * 2; b.endSlot = b.endSlot * 2; });
+    }
+    S.dayData[dateStr]._slotsConverted = true;
   }
   return S.dayData[dateStr];
 }
@@ -2087,14 +2104,17 @@ function renderDaily() {
     ? liveHabits.map(({item, catId, catName, catColor, idx}, i) => {
         const hs = item.habitStatus || 'yellow';
         const isLast = i === liveHabits.length - 1;
-        return `<div onclick="jumpToHabit('${catId}',${idx})" style="display:flex;align-items:center;gap:10px;padding:9px 0;${isLast?'':'border-bottom:1px solid var(--border);'}cursor:pointer" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">
+        const key = habitKey(catId, idx);
+        const isChecked = !!(S.habitLog && S.habitLog[key]);
+        return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;${isLast?'':'border-bottom:1px solid var(--border);'}">
           <div style="width:8px;height:8px;border-radius:50%;background:${HS_COLOR[hs]};flex-shrink:0"></div>
-          <div style="flex:1;min-width:0">
-            <div style="font-size:13px">${esc(item.t)}</div>
+          <div onclick="jumpToHabit('${catId}',${idx})" style="flex:1;min-width:0;cursor:pointer" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">
+            <div style="font-size:13px;${isChecked?'text-decoration:line-through;color:var(--text3)':''}">${esc(item.t)}</div>
             <div style="font-size:10px;color:${catColor};margin-top:2px;font-weight:500">${catName}</div>
           </div>
-          <span style="font-size:10px;color:${HS_COLOR[hs]};font-weight:500;white-space:nowrap">${hs==='green'?'On track':hs==='yellow'?'Needs work':'Off track'}</span>
-          <span style="font-size:11px;color:var(--text3)">→</span>
+          <div onclick="toggleTodayHabit('${catId}',${idx})" style="width:18px;height:18px;border-radius:3px;border:1.5px solid ${isChecked?'var(--accent)':'var(--border2)'};background:${isChecked?'var(--accent)':'transparent'};cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .15s">
+            ${isChecked?'<span style="color:#fff;font-size:10px;line-height:1">✓</span>':''}
+          </div>
         </div>`;
       }).join('')
     : '<div class="muted" style="padding:6px 0">No habits pinned to Today. Use the ◷ toggle in any habit to show it here.</div>';
@@ -2347,12 +2367,59 @@ function refreshAutoStatus(catId, gi, block) {
   }
 }
 
+function toggleTodayHabit(catId, idx) {
+  if (!S.habitLog) S.habitLog = {};
+  const vd = getViewingDate();
+  const key = vd + '_habit_' + catId + '_' + idx;
+  S.habitLog[key] = !S.habitLog[key];
+  saveState();
+  renderDaily();
+}
+
 function setHabitFreq(catId, gi, val) {
   if (!S.items[catId] || !S.items[catId][gi]) return;
   S.items[catId][gi].habitFreq = val;
   saveState();
   // Only refresh the auto-status readout, don't re-render the whole panel
   refreshAutoStatus(catId, gi, null);
+}
+
+function toggleHabitAutoMode(catId, gi) {
+  if (!S.items[catId] || !S.items[catId][gi]) return;
+  const item = S.items[catId][gi];
+  item.habitAutoMode = !item.habitAutoMode;
+  // If turning on, immediately apply the current auto status
+  if (item.habitAutoMode) applyAutoStatusSilent(catId, gi);
+  saveState();
+  renderCatPanel();
+}
+
+function applyAutoStatusSilent(catId, gi) {
+  const item = (S.items[catId] || [])[gi];
+  if (!item) return;
+  const freq = item.habitFreq || 'weekly_3';
+  const [freqType, freqNum] = freq.includes('_') ? [freq.split('_')[0], parseInt(freq.split('_')[1])] : [freq, 1];
+  const todayDate = new Date();
+  const allLogKeys = Object.keys(S.habitLog || {}).filter(k => k.endsWith('_habit_' + catId + '_' + gi) && S.habitLog[k]);
+  let autoStatus = 'yellow';
+  if (freqType === 'daily' || freqType === 'weekly') {
+    const target = freqType === 'daily' ? 7 : freqNum;
+    const sevenDaysAgo = new Date(todayDate); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const last7 = allLogKeys.filter(k => new Date(k.split('_habit_')[0] + 'T12:00:00') >= sevenDaysAgo).length;
+    autoStatus = last7 >= target ? 'green' : last7 >= Math.ceil(target * 0.6) ? 'yellow' : 'red';
+  } else if (freqType === 'monthly') {
+    const thirtyDaysAgo = new Date(todayDate); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const last30 = allLogKeys.filter(k => new Date(k.split('_habit_')[0] + 'T12:00:00') >= thirtyDaysAgo).length;
+    autoStatus = last30 >= freqNum ? 'green' : last30 >= Math.ceil(freqNum * 0.6) ? 'yellow' : 'red';
+  } else if (freqType === 'yearly') {
+    if (allLogKeys.length) {
+      const expectedDays = Math.floor(365 / freqNum);
+      const lastLogDate = allLogKeys.map(k => k.split('_habit_')[0]).sort().pop();
+      const daysSince = Math.floor((todayDate - new Date(lastLogDate + 'T12:00:00')) / 86400000);
+      autoStatus = daysSince <= expectedDays ? 'green' : daysSince <= Math.floor(expectedDays * 1.25) ? 'yellow' : 'red';
+    } else { autoStatus = 'red'; }
+  }
+  item.habitStatus = autoStatus;
 }
 
 function applyAutoStatus(catId, gi, status) {
@@ -2778,7 +2845,7 @@ function renderCatPanel() {
         <div class="habit-auto-status" style="padding:10px;border-radius:6px;background:var(--surface);border:1px solid var(--border);margin-bottom:6px">
           <div style="display:flex;align-items:center;justify-content:space-between">
             <span class="has-label" style="font-size:12px;font-weight:500;color:${HS_COLOR_T[autoStatus]}">${statusText}</span>
-            <button class="has-apply" onclick="applyAutoStatus('${catId}',${gi},'${autoStatus}')" style="font-size:11px;padding:3px 10px;border:1px solid ${HS_COLOR_T[autoStatus]};border-radius:6px;background:transparent;cursor:pointer;color:${HS_COLOR_T[autoStatus]};font-family:'DM Sans',sans-serif">Apply</button>
+            <button class="has-auto-toggle" onclick="toggleHabitAutoMode('${catId}',${gi})" style="font-size:11px;padding:3px 10px;border:1px solid ${item.habitAutoMode?'var(--accent)':'var(--border2)'};border-radius:6px;background:${item.habitAutoMode?'var(--accent-light)':'transparent'};cursor:pointer;color:${item.habitAutoMode?'var(--accent)':'var(--text3)'};font-family:'DM Sans',sans-serif;font-weight:500">${item.habitAutoMode?'● Auto on':'Auto'}</button>
           </div>
           <div class="has-sublabel" style="font-size:11px;color:var(--text3);margin-top:3px">${statusLabel}</div>
         </div>
@@ -4100,23 +4167,30 @@ function slotToTime(slot) {
 function parseTimeToSlot(str) {
   if (!str) return null;
   str = str.trim().toLowerCase().replace(/\s+/g,'');
-  // Formats: 9am, 9pm, 9:15am, 9:15, 14:30, 2:45pm, 930am, 1430
   let h = null, m = 0;
-  // 24h: 14:30 or 1430
-  const h24colon = str.match(/^(\d{1,2}):(\d{2})$/);
-  if (h24colon) { h = parseInt(h24colon[1]); m = parseInt(h24colon[2]); }
-  const h24bare = str.match(/^(\d{2})(\d{2})$/);
-  if (!h24colon && h24bare) { h = parseInt(h24bare[1]); m = parseInt(h24bare[2]); }
-  // 12h with am/pm
+  // 12h with am/pm — check first so "1:15pm" doesn't fall into 24h branch
   const h12 = str.match(/^(\d{1,2})(?::(\d{2}))?(am|pm)$/);
   if (h12) {
     h = parseInt(h12[1]); m = h12[2] ? parseInt(h12[2]) : 0;
     if (h12[3] === 'pm' && h !== 12) h += 12;
     if (h12[3] === 'am' && h === 12) h = 0;
   }
-  // bare number: 9 → 9am if <12, else pm
+  // 24h with colon: 14:30 or ambiguous 1:15 (no am/pm)
+  const h24colon = str.match(/^(\d{1,2}):(\d{2})$/);
+  if (!h12 && h24colon) {
+    h = parseInt(h24colon[1]); m = parseInt(h24colon[2]);
+    // Ambiguous: 1-4 without am/pm → assume pm (1:15 → 13:15)
+    if (h >= 1 && h <= 4) h += 12;
+  }
+  // 24h bare: 1430
+  const h24bare = str.match(/^(\d{2})(\d{2})$/);
+  if (!h12 && !h24colon && h24bare) { h = parseInt(h24bare[1]); m = parseInt(h24bare[2]); }
+  // Bare number: 9 → 9am, 1-4 → pm
   const bare = str.match(/^(\d{1,2})$/);
-  if (bare && h === null) { h = parseInt(bare[1]); if (h < 5) h += 12; }
+  if (bare && h === null) {
+    h = parseInt(bare[1]);
+    if (h >= 1 && h <= 4) h += 12;
+  }
   if (h === null) return null;
   if (h < SCHED_START || h >= SCHED_END) return null;
   const totalMins = h * 60 + m;
@@ -4127,7 +4201,7 @@ function parseTimeToSlot(str) {
 }
 
 function slotLabel(slot) {
-  // Show label every 4 slots (= 1 hour)
+  // Show label every 4 slots (= 1 hour at 15-min per slot)
   if (slot % 4 !== 0) return '';
   const h = SCHED_START + (slot / 4);
   return h === 12 ? '12pm' : h > 12 ? (h-12) + 'pm' : h + 'am';
@@ -4136,18 +4210,17 @@ function slotLabel(slot) {
 function renderScheduleGrid() {
   const el = document.getElementById('dailySchedule');
   if (!el) return;
-  const totalSlots = (SCHED_END - SCHED_START) * (60 / SLOT_MINS); // 15-min slots
+  const totalSlots = (SCHED_END - SCHED_START) * (60 / SLOT_MINS); // 30-min slots
 
   let html = `<div id="scheduleGrid" style="position:relative">`;
 
   // Build slot rows
   for (let s = 0; s < totalSlots; s++) {
-    const isHourTop = s % 4 === 0;
-    const isHalfTop = s % 4 === 2;
+    const isHourTop = s % 2 === 0;
     const label = slotLabel(s);
     html += `<div class="sched-row">
       <div class="sched-label">${label}</div>
-      <div class="sched-slot ${isHourTop ? 'hour-top' : isHalfTop ? 'half-top' : 'quarter-top'}" data-slot="${s}"
+      <div class="sched-slot ${isHourTop ? 'hour-top' : 'half-top'}" data-slot="${s}"
         onmousedown="schedMouseDown(event,${s})"
         onmousemove="schedMouseMove(event,${s})"
         onmouseup="schedMouseUp(event,${s})">
@@ -4273,8 +4346,8 @@ function schedMouseUp(e, slot) {
   clearDragHighlight();
   const startSlot = Math.min(schedDragStart, slot);
   const endSlot   = Math.max(schedDragStart, slot) + 1;
-  // Require minimum 1 slot drag to prevent accidental single-click triggers
-  if (endSlot - startSlot < 1) return;
+  // Require minimum 2 slots (30 min) to prevent accidental triggers
+  if (endSlot - startSlot < 2) return;
   openNewBlockForm(startSlot, endSlot);
 }
 
@@ -4302,7 +4375,7 @@ function schedTouchStartGrid(e) {
     if (!touchMoved && touchPressSlot !== null) {
       // Deliberate tap — open form with this slot pre-filled
       const start = touchPressSlot;
-      const end   = Math.min(start + 2, (SCHED_END - SCHED_START) * 2); // default 1hr
+      const end   = Math.min(start + 4, (SCHED_END - SCHED_START) * (60/SLOT_MINS)); // default 1hr (4 slots)
       openNewBlockForm(start, end);
     }
   }, TOUCH_PRESS_MS);
@@ -4408,13 +4481,23 @@ function showSchedModal(title, startSlot, endSlot, linkedCatId, linkedGi) {
   </div>`;
 
   modal.style.display = 'flex';
-  setTimeout(() => { const inp = document.getElementById('schedTitle'); if(inp) inp.focus(); }, 50);
+  // Explicitly set values via JS — browser may ignore value= attribute on reused elements
+  setTimeout(() => {
+    const startEl = document.getElementById('schedStart');
+    const endEl   = document.getElementById('schedEnd');
+    const titleEl = document.getElementById('schedTitle');
+    if (startEl) startEl.value = startTimeStr;
+    if (endEl)   endEl.value   = endTimeStr;
+    if (titleEl) { titleEl.value = title; titleEl.focus(); }
+  }, 10);
 }
 
 function saveSchedBlock() {
   const title = document.getElementById('schedTitle').value.trim();
-  const startSlot = parseTimeToSlot(document.getElementById('schedStart').value);
-  const endSlot   = parseTimeToSlot(document.getElementById('schedEnd').value);
+  const startRaw = document.getElementById('schedStart').value;
+  const endRaw   = document.getElementById('schedEnd').value;
+  const startSlot = parseTimeToSlot(startRaw);
+  const endSlot   = parseTimeToSlot(endRaw);
   const errEl = document.getElementById('schedTimeError');
   if (startSlot === null || endSlot === null) {
     if (errEl) { errEl.textContent = 'Could not parse time — try "9am", "9:15am", "14:30"'; errEl.style.display = 'block'; }
@@ -4441,6 +4524,7 @@ function saveSchedBlock() {
   saveState();
   closeSchedModal();
   renderScheduleBlocks();
+  showToast(slotToTime(startSlot) + ' – ' + slotToTime(endSlot));
 }
 
 function deleteSchedBlock(id) {
