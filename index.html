@@ -1628,7 +1628,10 @@ function saveState() {
   scheduleSyncSave();
 }
 
-function today() { return new Date().toISOString().split('T')[0]; }
+function today() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
 function fmtDate(s) {
   try { return new Date(s + 'T12:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}); }
   catch(e) { return s; }
@@ -2020,10 +2023,9 @@ function renderDaily() {
   const subEl = document.getElementById('dailyDateSub');
   if (bigEl) bigEl.textContent = bigDate;
   if (subEl) subEl.textContent = subDate;
-  // Prev button disabled if viewing today
+  // Prev button always enabled — can navigate freely to past
   const prevBtn = document.getElementById('dayNavPrev');
-  if (prevBtn) prevBtn.disabled = isToday;
-  if (prevBtn) prevBtn.style.opacity = isToday ? '0.3' : '1';
+  if (prevBtn) { prevBtn.disabled = false; prevBtn.style.opacity = '1'; }
   // Today button visible when not on today
   const todayBtn = document.getElementById('dayNavToday');
   if (todayBtn) todayBtn.style.display = isToday ? 'none' : 'inline-block';
@@ -2523,8 +2525,6 @@ function navigateDay(dir) {
   const current = new Date(getViewingDate() + 'T12:00:00');
   current.setDate(current.getDate() + dir);
   const newDate = current.toISOString().split('T')[0];
-  // Don't go before today
-  if (newDate < today()) return;
   viewingDate = newDate === today() ? null : newDate;
   renderDaily();
 }
