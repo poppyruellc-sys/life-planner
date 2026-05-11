@@ -149,7 +149,7 @@
   .topbar {
     background: var(--surface);
     border-bottom: 1px solid var(--border);
-    padding: 14px 32px;
+    padding: 14px 40px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -169,8 +169,10 @@
   }
 
   .content {
-    padding: 28px 32px 60px;
-    max-width: 1100px;
+    padding: 28px 40px 60px;
+    width: 100%;
+    box-sizing: border-box;
+    flex: 1;
   }
 
   /* PANELS */
@@ -197,7 +199,7 @@
   }
 
   /* GRID */
-  .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
   .g3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
   .g4 { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }
 
@@ -897,7 +899,7 @@
         <span class="icon">◻</span> Journal
       </button>
       <button class="nav-btn" onclick="go('weekly',this)">
-        <span class="icon">◫</span> Week Review
+        <span class="icon">◫</span> Week
       </button>
     </div>
 
@@ -965,7 +967,7 @@
             </div>
           </div>
         </div>
-        <div class="g2">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:20px">
           <div>
             <div class="card">
               <div class="card-title">Goals</div>
@@ -1159,45 +1161,79 @@
 
       <!-- WEEKLY REVIEW -->
       <div class="panel" id="panel-weekly">
-        <div class="g2">
-          <div>
-            <div class="card">
-              <div class="card-title">This week</div>
-              <div class="card-title mt8">Top 3 wins</div>
-              <textarea id="wWins" rows="3" placeholder="1.&#10;2.&#10;3." class="inp-gap"></textarea>
-              <div class="card-title">What didn't go as planned?</div>
-              <textarea id="wMisses" rows="2" placeholder="Be honest, not harsh..." class="inp-gap"></textarea>
-              <div class="card-title">What did I learn about myself?</div>
-              <textarea id="wLearn" rows="2" placeholder="Patterns, insights, surprises..." class="inp-gap"></textarea>
-              <div class="card-title">Am I moving toward what matters most?</div>
-              <textarea id="wAlign" rows="2" placeholder="Gut check..." class="inp-gap"></textarea>
-              <div class="card-title">Which category needs more attention?</div>
-              <textarea id="wNeglect" rows="2" placeholder="What would giving it attention look like?"></textarea>
-            </div>
+        <!-- Week navigation header — sticky -->
+        <div id="weekNavHeader" style="position:sticky;top:0;z-index:50;background:var(--bg);padding:10px 0;margin-bottom:16px;border-bottom:1px solid var(--border)">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <button onclick="navigateWeek(-1)" style="padding:3px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface);cursor:pointer;font-size:15px;color:var(--text2);line-height:1">‹</button>
+            <button onclick="navigateWeek(1)"  style="padding:3px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface);cursor:pointer;font-size:15px;color:var(--text2);line-height:1">›</button>
+            <button onclick="jumpToCurrentWeek()" id="weekNavNow" style="display:none;padding:3px 10px;font-size:11px;border:1px solid var(--accent);border-radius:8px;background:var(--accent-light);cursor:pointer;color:var(--accent);font-family:'DM Sans',sans-serif;font-weight:500">This week</button>
           </div>
-          <div>
-            <div class="card">
-              <div class="card-title">Next week</div>
-              <div class="card-title mt8" style="font-size:11px">Theme / focus word</div>
-              <input type="text" id="nwTheme" placeholder="e.g. 'Family first' or 'Ship it'" class="inp-gap">
-              <div class="card-title" style="font-size:11px">Top 3 priorities</div>
-              <input type="text" id="nw1" placeholder="1." class="inp-gap">
-              <input type="text" id="nw2" placeholder="2." class="inp-gap">
-              <input type="text" id="nw3" placeholder="3." class="inp-gap">
-              <button class="btn btn-primary" style="width:100%;margin-top:8px" onclick="saveWeekly()">Save review</button>
-            </div>
-
-          </div>
+          <div style="font-family:'DM Serif Display',serif;font-size:22px;line-height:1.2;color:var(--text)" id="weekRangeLabel"></div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px" id="weekSubLabel"></div>
         </div>
 
-        <!-- Past entries divider -->
-        <div style="display:flex;align-items:center;gap:12px;margin:28px 0 16px">
-          <div style="flex:1;height:1px;background:var(--border)"></div>
-          <span style="font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--text3)">Past entries</span>
-          <div style="flex:1;height:1px;background:var(--border)"></div>
+        <!-- Two column layout -->
+        <div class="g2" style="align-items:start">
+
+          <!-- LEFT COLUMN: Prepare -->
+          <div>
+            <!-- Priorities -->
+            <div class="card" style="margin-bottom:16px">
+              <div class="card-title">Prepare — Priority</div>
+              <div id="weekPriorities"></div>
+            </div>
+
+            <!-- This week's events -->
+            <div class="card" style="margin-bottom:16px">
+              <div class="card-title">This week's events</div>
+              <div id="weekEvents"></div>
+            </div>
+
+            <!-- This week's tasks -->
+            <div class="card" style="margin-bottom:16px">
+              <div class="fbc mb12">
+                <div class="card-title" style="margin:0">This week's tasks</div>
+              </div>
+              <div id="weekTasks"></div>
+            </div>
+
+            <!-- Intentions -->
+            <div class="card">
+              <div class="card-title">Intentions</div>
+              <div style="font-size:11px;color:var(--text3);margin-bottom:8px;font-style:italic">What do I want this week to stand for? What am I bringing into it?</div>
+              <textarea id="wIntentions" rows="4" placeholder="Write freely..." oninput="saveWeekField('intentions',this.value)" style="width:100%;resize:vertical"></textarea>
+            </div>
+          </div>
+
+          <!-- RIGHT COLUMN: Reflect -->
+          <div>
+            <!-- Biggest accomplishments -->
+            <div class="card" style="margin-bottom:16px">
+              <div class="card-title" style="font-size:13px">Biggest accomplishments</div>
+              <textarea id="wAccomplishments" rows="3" placeholder="What did I get done this week that I'm proud of?" oninput="saveWeekField('accomplishments',this.value)" style="width:100%;resize:vertical"></textarea>
+            </div>
+
+            <!-- Habits -->
+            <div class="card" style="margin-bottom:16px">
+              <div class="card-title" style="font-size:13px">Habits</div>
+              <div id="weekHabits" style="margin-bottom:12px"></div>
+              <div style="font-size:11px;font-weight:500;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em">Habit insights</div>
+              <textarea id="wHabitInsights" rows="3" placeholder="What's going well? What isn't? Any patterns?" oninput="saveWeekField('habitInsights',this.value)" style="width:100%;resize:vertical"></textarea>
+            </div>
+
+            <!-- Meaningful moments -->
+            <div class="card" style="margin-bottom:16px">
+              <div class="card-title" style="font-size:13px">Meaningful moments</div>
+              <textarea id="wMeaningful" rows="3" placeholder="What experiences, conversations, or moments stood out this week?" oninput="saveWeekField('meaningfulMoments',this.value)" style="width:100%;resize:vertical"></textarea>
+            </div>
+
+            <!-- Ways to improve -->
+            <div class="card">
+              <div class="card-title" style="font-size:13px">Ways I can improve next week</div>
+              <textarea id="wImprove" rows="3" placeholder="What would I do differently? What habits or behaviors do I want to adjust?" oninput="saveWeekField('improvements',this.value)" style="width:100%;resize:vertical"></textarea>
+            </div>
+          </div>
         </div>
-        <div id="weeklyHistory"></div>
-        <div id="weeklyHistoryMore" style="text-align:center;margin-top:8px"></div>
       </div>
 
       <!-- NEEDS ATTENTION -->
@@ -1587,7 +1623,7 @@ let S = {
   scheduleBlocks: [],   // legacy — migrated to dayData
   scheduleDate: '',     // legacy
   dayData: {},          // keyed by dateStr: {priorities, scheduleBlocks, reflection, energy, dayRating, tasks}
-  journal: [], weeklyReviews: [], catNotes: {}, networkPings: {},
+  journal: [], weeklyReviews: [], weekData: {}, catNotes: {}, networkPings: {},
   contacts: JSON.parse(JSON.stringify(DEFAULT_CONTACTS)),
   customCats: null
 };
@@ -1652,6 +1688,78 @@ function getWeekNumber(d) {
   const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
   return Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
 }
+// Get Monday of the week containing a date (ISO week starts Monday)
+function getWeekMonday(date) {
+  const d = new Date(date);
+  const day = d.getDay(); // 0=Sun, 1=Mon...
+  const diff = (day === 0 ? -6 : 1 - day); // shift to Monday
+  d.setDate(d.getDate() + diff);
+  return d.toISOString().split('T')[0];
+}
+
+function getWeekSunday(mondayStr) {
+  const d = new Date(mondayStr + 'T12:00:00');
+  d.setDate(d.getDate() + 6);
+  return d.toISOString().split('T')[0];
+}
+
+function formatWeekRange(mondayStr) {
+  const mon = new Date(mondayStr + 'T12:00:00');
+  const sun = new Date(mondayStr + 'T12:00:00');
+  sun.setDate(sun.getDate() + 6);
+  const opts = {month:'short', day:'numeric'};
+  return mon.toLocaleDateString('en-US', opts) + ' – ' + sun.toLocaleDateString('en-US', opts);
+}
+
+function getWeekData(mondayStr) {
+  if (!S.weekData) S.weekData = {};
+  if (!S.weekData[mondayStr]) {
+    S.weekData[mondayStr] = {
+      priorities: [
+        {text:'', days:[], weekText:''},
+        {text:'', days:[], weekText:''},
+        {text:'', days:[], weekText:''}
+      ],
+      intentions: '',
+      accomplishments: '',
+      habitInsights: '',
+      meaningfulMoments: '',
+      improvements: '',
+      pinnedTaskWeeks: [] // legacy
+    };
+  }
+  return S.weekData[mondayStr];
+}
+
+let viewingWeek = null; // null = current week; set to monday ISO string when navigating
+
+function getViewingWeek() {
+  return viewingWeek || getWeekMonday(new Date());
+}
+
+function isViewingCurrentWeek() {
+  return getViewingWeek() === getWeekMonday(new Date());
+}
+
+function navigateWeek(dir) {
+  const current = new Date(getViewingWeek() + 'T12:00:00');
+  current.setDate(current.getDate() + (dir * 7));
+  const newWeek = current.toISOString().split('T')[0];
+  viewingWeek = newWeek === getWeekMonday(new Date()) ? null : newWeek;
+  renderWeekly();
+}
+
+function jumpToCurrentWeek() {
+  viewingWeek = null;
+  renderWeekly();
+}
+
+// Get ISO week key for a date (YYYY-Www)
+function getWeekKey(mondayStr) {
+  const d = new Date(mondayStr + 'T12:00:00');
+  return mondayStr; // use monday date as key
+}
+
 function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
@@ -1708,7 +1816,7 @@ const PANEL_TITLES = {
   daily: 'Today',
   categories: 'All Categories',
   journal: 'Journal',
-  weekly: 'Week Review',
+  weekly: 'Week',
   attention: 'Needs Attention',
   crm: 'Network CRM',
   managecats: 'Manage Categories',
@@ -2677,10 +2785,19 @@ function renderCatPanel() {
   function habitActionBtns(gi, item) {
     const pinned = item.showOnDash;
     const onToday = item.showOnToday;
-    return `<div class="item-actions" style="display:flex;gap:3px;align-items:center;flex-shrink:0">
+    const onWeek  = item.showOnWeek;
+    const onMonth = item.showOnMonth;
+    const pillStyle = (active, color, bg) => `padding:3px 7px;font-size:11px;border:1px solid ${active?color:'var(--border2)'};border-radius:12px;background:${active?bg:'transparent'};cursor:pointer;color:${active?color:'var(--text3)'};font-family:'DM Sans',sans-serif;font-weight:${active?'500':'400'}`;
+    return `<div class="item-actions" style="display:flex;gap:3px;align-items:center;flex-shrink:0;flex-wrap:wrap">
       <button id="edit-btn-${gi}" onclick="toggleItemEdit(${gi})" title="Edit" style="padding:4px 9px;font-size:12px;border:1px solid var(--border2);border-radius:6px;background:transparent;cursor:pointer;color:var(--text3);font-family:'DM Sans',sans-serif">✎</button>
       <button id="dash-btn-${gi}" onclick="toggleShowOnDash(${gi})" title="${pinned?'Unpin from dashboard':'Pin to dashboard'}" style="padding:4px 9px;font-size:12px;border:1px solid ${pinned?'#1A7A55':'var(--border2)'};border-radius:6px;background:${pinned?'#E8F0EC':'transparent'};cursor:pointer;color:${pinned?'#1A7A55':'var(--text3)'};font-family:'DM Sans',sans-serif">◈</button>
-      <button id="today-btn-${gi}" onclick="toggleShowOnToday(${gi})" title="${onToday?'Remove from Today tab':'Show on Today tab'}" style="padding:4px 9px;font-size:12px;border:1px solid ${onToday?'#1A5FA0':'var(--border2)'};border-radius:6px;background:${onToday?'#E6F1FB':'transparent'};cursor:pointer;color:${onToday?'#1A5FA0':'var(--text3)'};font-family:'DM Sans',sans-serif">◷</button>
+      <div style="display:flex;gap:2px;align-items:center;border:1px solid var(--border2);border-radius:12px;padding:2px 4px;background:var(--surface2)">
+        <span style="font-size:9px;color:var(--text3);margin-right:2px">Show:</span>
+        <button id="today-btn-${gi}" onclick="toggleShowOnToday(${gi})" style="${pillStyle(onToday,'#1A5FA0','#E6F1FB')}" title="Today tab">Today</button>
+        <button id="week-btn-${gi}"  onclick="toggleShowOnWeek(${gi})"  style="${pillStyle(onWeek,'#6B3FA0','#F0EBF8')}"  title="Week tab">Week</button>
+        <button id="month-btn-${gi}" onclick="toggleShowOnMonth(${gi})" style="${pillStyle(onMonth,'#9A6500','#FDF5E6')}" title="Month tab">Month</button>
+      </div>
+      ${moveToCatBtn(gi)}
       <button onclick="deleteCatItem(${gi})" title="Delete — permanently removes this item" style="padding:4px 9px;font-size:12px;border:1px solid var(--border2);border-radius:6px;background:transparent;cursor:pointer;color:#c0392b;font-family:'DM Sans',sans-serif">✕</button>
     </div>`;
   }
@@ -3277,91 +3394,246 @@ function saveJournal() {
 let weeklyHistoryLimit = 4;
 
 function renderWeekly() {
-  renderWeeklyHistory(weeklyHistoryLimit);
-}
+  const wk = getViewingWeek();
+  const isCurrent = isViewingCurrentWeek();
+  const weekD = getWeekData(wk);
+  const sunday = getWeekSunday(wk);
 
-function renderWeeklyHistory(limit) {
-  weeklyHistoryLimit = limit;
-  const reviews = (S.weeklyReviews || []).slice().sort((a,b) => b.date.localeCompare(a.date));
-  const shown = reviews.slice(0, limit);
-  const histEl = document.getElementById('weeklyHistory');
-  const moreEl = document.getElementById('weeklyHistoryMore');
-  if (!histEl) return;
+  // Update header
+  const rangeEl = document.getElementById('weekRangeLabel');
+  const subEl   = document.getElementById('weekSubLabel');
+  const nowBtn  = document.getElementById('weekNavNow');
+  if (rangeEl) rangeEl.textContent = formatWeekRange(wk);
+  if (subEl)   subEl.textContent   = isCurrent ? 'Current week' : (wk < getWeekMonday(new Date()) ? 'Past week' : 'Future week');
+  if (nowBtn)  nowBtn.style.display = isCurrent ? 'none' : 'inline-block';
 
-  if (!shown.length) {
-    histEl.innerHTML = '<div class="muted" style="padding:8px 0">No past reviews yet. Save your first review above.</div>';
-    if (moreEl) moreEl.innerHTML = '';
-    return;
+  // ── Priorities ──────────────────────────────────────────────────────────────
+  const DAYS = ['M','T','W','T','F','S','S'];
+  const weekDates = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(wk + 'T12:00:00');
+    d.setDate(d.getDate() + i);
+    weekDates.push(d.toISOString().split('T')[0]);
   }
 
-  histEl.innerHTML = shown.map((r, i) => {
-    const dateLabel = new Date(r.date + 'T12:00:00').toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'});
-    const addedNote = r.addedNote || '';
-    return `<div style="border:1px solid var(--border);border-radius:10px;margin-bottom:10px;overflow:hidden">
-      <div onclick="toggleWeeklyEntry('we-${i}')" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;cursor:pointer;background:var(--surface)" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface)'">
-        <div>
-          <div style="font-size:13px;font-weight:500">${dateLabel}</div>
-          ${r.theme ? `<div style="font-size:11px;color:var(--accent);margin-top:2px;font-weight:500">${esc(r.theme)}</div>` : ''}
-        </div>
-        <span id="we-arrow-${i}" style="font-size:10px;color:var(--text3);transition:transform .15s">▶</span>
-      </div>
-      <div id="we-${i}" style="display:none;padding:14px 16px;background:var(--surface);border-top:1px solid var(--border)">
-        ${r.wins ? `<div style="margin-bottom:10px"><div style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:4px">Top 3 wins</div><div style="font-size:13px;line-height:1.7;color:var(--text2)">${esc(r.wins)}</div></div>` : ''}
-        ${r.misses ? `<div style="margin-bottom:10px"><div style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:4px">What didn't go as planned</div><div style="font-size:13px;line-height:1.7;color:var(--text2)">${esc(r.misses)}</div></div>` : ''}
-        ${r.learn ? `<div style="margin-bottom:10px"><div style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:4px">What I learned</div><div style="font-size:13px;line-height:1.7;color:var(--text2)">${esc(r.learn)}</div></div>` : ''}
-        ${r.align ? `<div style="margin-bottom:10px"><div style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:4px">Moving toward what matters?</div><div style="font-size:13px;line-height:1.7;color:var(--text2)">${esc(r.align)}</div></div>` : ''}
-        ${r.neglect ? `<div style="margin-bottom:10px"><div style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:4px">Needs more attention</div><div style="font-size:13px;line-height:1.7;color:var(--text2)">${esc(r.neglect)}</div></div>` : ''}
-        ${r.priorities && r.priorities.some(p=>p) ? `<div style="margin-bottom:10px"><div style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:4px">Next week priorities</div>${r.priorities.filter(p=>p).map(p=>`<div style="font-size:13px;color:var(--text2);padding:2px 0">• ${esc(p)}</div>`).join('')}</div>` : ''}
-        <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
-          <div style="font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin-bottom:6px">Add a note</div>
-          <textarea rows="2" placeholder="Reflection, follow-up thought..." onchange="saveWeeklyNote('${r.date}',this.value)" style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--border2);border-radius:6px;background:var(--surface2);color:var(--text);font-family:'DM Sans',sans-serif;outline:none;resize:vertical;box-sizing:border-box">${esc(addedNote)}</textarea>
-        </div>
-      </div>
+  const priHtml = (weekD.priorities || [{},{},{}]).map((p, idx) => {
+    const dayBtns = DAYS.map((day, di) => {
+      const active = (p.days || []).includes(di);
+      return `<button onclick="toggleWeekPriorityDay(${idx},${di})" style="padding:2px 6px;font-size:10px;border:1px solid ${active?'var(--accent)':'var(--border2)'};border-radius:4px;background:${active?'var(--accent-light)':'transparent'};cursor:pointer;color:${active?'var(--accent)':'var(--text3)'};font-family:'DM Sans',sans-serif;font-weight:${active?'500':'400'}">${day}</button>`;
+    }).join('');
+    return `<div style="padding:10px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;background:var(--surface)">
+      <input type="text" value="${esc(p.text||'')}" placeholder="Priority ${idx+1}..."
+        oninput="saveWeekPriority(${idx},'text',this.value)"
+        style="width:100%;border:none;background:transparent;font-size:13px;color:var(--text);font-family:'DM Sans',sans-serif;outline:none;margin-bottom:8px">
+      <div style="font-size:10px;color:var(--text3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.06em">Plan for day:</div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap">${dayBtns}</div>
     </div>`;
   }).join('');
+  const priEl = document.getElementById('weekPriorities');
+  if (priEl) priEl.innerHTML = priHtml;
 
-  if (moreEl) {
-    if (reviews.length > limit) {
-      moreEl.innerHTML = `<button onclick="renderWeeklyHistory(${limit + 4})" style="padding:6px 20px;border:1px solid var(--border2);border-radius:8px;background:transparent;cursor:pointer;font-size:12px;color:var(--text2);font-family:'DM Sans',sans-serif">Load ${Math.min(4, reviews.length - limit)} more</button>`;
-    } else {
-      moreEl.innerHTML = '';
+  // ── This week's events ──────────────────────────────────────────────────────
+  const eventsEl = document.getElementById('weekEvents');
+  if (eventsEl) {
+    const weekEvts = [];
+    CATS.forEach(cat => {
+      (S.items[cat.id] || []).forEach((item, gi) => {
+        if (item.tp !== 'event' || item.s === 'done') return;
+        if (!item.d) return;
+        const range = window.parseDateRange && window.parseDateRange(item.d);
+        if (!range) return;
+        const ds = range.start.toISOString().split('T')[0];
+        if (ds >= wk && ds <= sunday) {
+          weekEvts.push({item, catId:cat.id, catName:cat.name, catColor:cat.color, gi, ds});
+        }
+      });
+    });
+    // CRM meetings
+    (S.contacts||[]).forEach(c => {
+      if (c.scheduledMeeting && c.scheduledMeeting >= wk && c.scheduledMeeting <= sunday) {
+        weekEvts.push({item:{t:'📅 Meeting: '+c.name, s:'upcoming', d:c.scheduledMeeting}, catId:null, catName:'Network', catColor:'#1A5FA0', gi:null, ds:c.scheduledMeeting, contactId:c.id});
+      }
+    });
+    weekEvts.sort((a,b) => a.ds.localeCompare(b.ds));
+    eventsEl.innerHTML = weekEvts.length ? weekEvts.map(e => {
+      const dateLabel = new Date(e.ds+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+      return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="${e.contactId?`openCrmDetail('${e.contactId}')`:`jumpToItem('${e.catId}',${e.gi})`}">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.item.t)}</div>
+          <div style="font-size:10px;color:${e.catColor};margin-top:1px">${e.catName}</div>
+        </div>
+        <span style="font-size:11px;color:var(--text3);white-space:nowrap">${dateLabel}</span>
+      </div>`;
+    }).join('')
+    : '<div class="muted" style="font-size:13px">No events scheduled this week.</div>';
+  }
+
+  // ── This week's tasks ───────────────────────────────────────────────────────
+  const tasksEl = document.getElementById('weekTasks');
+  if (tasksEl) {
+    // Auto-carry: mark incomplete pinned tasks from previous weeks to current week
+    if (isCurrent) {
+      const currentWk = getWeekMonday(new Date());
+      CATS.forEach(cat => {
+        (S.items[cat.id] || []).forEach(item => {
+          if (item.tp === 'task' && item.weekPin && item.weekPin !== currentWk && item.s !== 'done') {
+            item.weekPin = currentWk; // carry forward
+          }
+        });
+      });
     }
+    const weekTasks = [];
+    CATS.forEach(cat => {
+      (S.items[cat.id] || []).forEach((item, gi) => {
+        if (item.tp === 'task' && item.weekPin === wk) {
+          weekTasks.push({item, catId:cat.id, catName:cat.name, catColor:cat.color, gi});
+        }
+      });
+    });
+    const incomplete = weekTasks.filter(t => t.item.s !== 'done');
+    const done       = weekTasks.filter(t => t.item.s === 'done');
+    const taskRow = ({item, catId, catName, catColor, gi}) => `
+      <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+        <div class="checkbox ${item.s==='done'?'done':''}" onclick="toggleCatItemFromWeek('${catId}',${gi})" style="flex-shrink:0">${item.s==='done'?'✓':''}</div>
+        <div style="flex:1;min-width:0;cursor:pointer" onclick="jumpToItem('${catId}',${gi})">
+          <div style="font-size:13px;${item.s==='done'?'text-decoration:line-through;color:var(--text3)':''}">${esc(item.t)}</div>
+          <div style="font-size:10px;color:${catColor};margin-top:1px">${catName}</div>
+        </div>
+        <button onclick="unpinFromWeek('${catId}',${gi})" title="Remove from this week" style="padding:2px 6px;font-size:10px;border:1px solid var(--border2);border-radius:6px;background:transparent;cursor:pointer;color:var(--text3);font-family:'DM Sans',sans-serif">✕</button>
+      </div>`;
+    tasksEl.innerHTML = (incomplete.length || done.length)
+      ? incomplete.map(taskRow).join('') + (done.length ? `<div style="font-size:10px;color:var(--text3);margin-top:6px">${done.length} completed</div>` + done.map(taskRow).join('') : '')
+      : '<div class="muted" style="font-size:13px">No tasks pinned. Use 📌 on any task in categories.</div>';
+  }
+
+  // ── Reflect fields ──────────────────────────────────────────────────────────
+  const fields = {
+    wIntentions:    weekD.intentions || '',
+    wAccomplishments: weekD.accomplishments || '',
+    wHabitInsights: weekD.habitInsights || '',
+    wMeaningful:    weekD.meaningfulMoments || '',
+    wImprove:       weekD.improvements || ''
+  };
+  Object.entries(fields).forEach(([id, val]) => {
+    const el = document.getElementById(id);
+    if (el) el.value = val;
+  });
+
+  // ── Week habits ─────────────────────────────────────────────────────────────
+  const weekHabitsEl = document.getElementById('weekHabits');
+  if (weekHabitsEl) {
+    const wkHabits = [];
+    CATS.forEach(cat => {
+      (S.items[cat.id]||[]).forEach((item,idx) => {
+        if (item.tp==='habit' && item.showOnWeek) wkHabits.push({item,catId:cat.id,catName:cat.name,catColor:cat.color,idx});
+      });
+    });
+    const HS_COLOR = {green:'#1A7A55',yellow:'#9A6500',red:'#8B2500'};
+    weekHabitsEl.innerHTML = wkHabits.length
+      ? wkHabits.map(({item,catId,catName,catColor,idx}) => {
+          const hs = item.habitStatus || 'yellow';
+          // Count logs for this week
+          const logCount = weekDates.filter(d => S.habitLog && S.habitLog[d+'_habit_'+catId+'_'+idx]).length;
+          return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="jumpToHabit('${catId}',${idx})">
+            <div style="width:8px;height:8px;border-radius:50%;background:${HS_COLOR[hs]};flex-shrink:0"></div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:13px">${esc(item.t)}</div>
+              <div style="font-size:10px;color:${catColor};margin-top:1px">${catName}</div>
+            </div>
+            <span style="font-size:11px;color:var(--text3)">${logCount}x this week</span>
+          </div>`;
+        }).join('')
+      : '<div class="muted" style="font-size:13px">No habits pinned to Week. Use the pill toggle on any habit.</div>';
   }
 }
 
-function toggleWeeklyEntry(id) {
-  const el = document.getElementById(id);
-  const idx = id.replace('we-','');
-  const arrow = document.getElementById('we-arrow-' + idx);
-  if (!el) return;
-  const isOpen = el.style.display !== 'none';
-  el.style.display = isOpen ? 'none' : 'block';
-  if (arrow) arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
+function saveWeekField(field, val) {
+  const wkD = getWeekData(getViewingWeek());
+  wkD[field] = val;
+  saveState();
 }
 
-function saveWeeklyNote(dateStr, val) {
-  const entry = (S.weeklyReviews || []).find(r => r.date === dateStr);
-  if (entry) { entry.addedNote = val; saveState(); }
+function saveWeekPriority(idx, field, val) {
+  const wkD = getWeekData(getViewingWeek());
+  if (!wkD.priorities[idx]) wkD.priorities[idx] = {text:'', days:[]};
+  wkD.priorities[idx][field] = val;
+  saveState();
+}
+
+function toggleWeekPriorityDay(idx, dayIdx) {
+  const wkD = getWeekData(getViewingWeek());
+  if (!wkD.priorities[idx]) wkD.priorities[idx] = {text:'', days:[]};
+  const days = wkD.priorities[idx].days || [];
+  const pos = days.indexOf(dayIdx);
+  if (pos >= 0) days.splice(pos, 1);
+  else days.push(dayIdx);
+  wkD.priorities[idx].days = days;
+  saveState();
+  // Render just the day buttons in-place
+  renderWeekly();
+}
+
+function toggleWeekPin(catId, gi) {
+  const item = (S.items[catId]||[])[gi];
+  if (!item) return;
+  const currentWk = getWeekMonday(new Date());
+  item.weekPin = item.weekPin === currentWk ? null : currentWk;
+  saveState();
+  renderCatPanel();
+  showToast(item.weekPin ? 'Pinned to this week' : 'Removed from this week');
+}
+
+function unpinFromWeek(catId, gi) {
+  const item = (S.items[catId]||[])[gi];
+  if (!item) return;
+  item.weekPin = null;
+  saveState();
+  renderWeekly();
+  showToast('Removed from week');
+}
+
+function toggleCatItemFromWeek(catId, gi) {
+  const item = (S.items[catId]||[])[gi];
+  if (!item) return;
+  item.s = item.s === 'done' ? 'todo' : 'done';
+  saveState();
+  renderWeekly();
+}
+
+function toggleShowOnWeek(gi) {
+  const item = (S.items[activeCat]||[])[gi];
+  if (!item) return;
+  item.showOnWeek = !item.showOnWeek;
+  saveState();
+  const btn = document.getElementById('week-btn-' + gi);
+  if (btn) {
+    btn.style.borderColor = item.showOnWeek ? '#6B3FA0' : 'var(--border2)';
+    btn.style.background  = item.showOnWeek ? '#F0EBF8' : 'transparent';
+    btn.style.color       = item.showOnWeek ? '#6B3FA0' : 'var(--text3)';
+    btn.style.fontWeight  = item.showOnWeek ? '500' : '400';
+  }
+  showToast(item.showOnWeek ? 'Added to Week tab' : 'Removed from Week tab');
+}
+
+function toggleShowOnMonth(gi) {
+  const item = (S.items[activeCat]||[])[gi];
+  if (!item) return;
+  item.showOnMonth = !item.showOnMonth;
+  saveState();
+  const btn = document.getElementById('month-btn-' + gi);
+  if (btn) {
+    btn.style.borderColor = item.showOnMonth ? '#9A6500' : 'var(--border2)';
+    btn.style.background  = item.showOnMonth ? '#FDF5E6' : 'transparent';
+    btn.style.color       = item.showOnMonth ? '#9A6500' : 'var(--text3)';
+    btn.style.fontWeight  = item.showOnMonth ? '500' : '400';
+  }
+  showToast(item.showOnMonth ? 'Added to Month tab' : 'Removed from Month tab');
 }
 
 function saveWeekly() {
-  if (!S.weeklyReviews) S.weeklyReviews = [];
-  S.weeklyReviews.unshift({
-    date: today(),
-    theme:    document.getElementById('nwTheme').value,
-    wins:     document.getElementById('wWins').value,
-    misses:   document.getElementById('wMisses').value,
-    learn:    document.getElementById('wLearn').value,
-    align:    document.getElementById('wAlign').value,
-    neglect:  document.getElementById('wNeglect').value,
-    priorities: [
-      document.getElementById('nw1').value,
-      document.getElementById('nw2').value,
-      document.getElementById('nw3').value
-    ]
-  });
-  saveState(); renderWeekly();
-  showToast('Weekly review saved!');
+  // Legacy — kept for backward compat. New saves happen via saveWeekField
+  saveState();
+  showToast('Week saved');
 }
 
 // ─── ATTENTION ────────────────────────────────────────────────────────────────
