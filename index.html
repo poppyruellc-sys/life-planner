@@ -2056,37 +2056,36 @@ function renderDaily() {
   const reflTitle = document.getElementById('reflectionCardTitle');
   if (reflTitle) reflTitle.textContent = isToday ? 'Evening reflection' : 'Reflection / intention';
 
-  // Priorities — read-only if past, editable if today or future
-  const isPast = vd < td;
+  // Priorities — fully editable on all days (past, today, future)
   [0,1,2].forEach(i => {
     const p = (dayD.priorities || [])[i] || {text:'',done:false};
     const inp = document.getElementById('pri-text-' + i);
     const chk = document.getElementById('pri-check-' + i);
-    if (inp) { inp.value = p.text || ''; inp.classList.toggle('done', !!p.done); inp.disabled = !!p.done || isPast; }
+    if (inp) { inp.value = p.text || ''; inp.classList.toggle('done', !!p.done); inp.disabled = !!p.done; }
     if (chk) chk.classList.toggle('done', !!p.done);
-    if (chk) chk.style.pointerEvents = isPast ? 'none' : '';
+    if (chk) chk.style.pointerEvents = '';
   });
 
   // Schedule
   renderScheduleGrid();
 
   const reflection = document.getElementById('reflection');
-  if (reflection) { reflection.value = dayD.reflection || ''; reflection.disabled = isPast; }
+  if (reflection) { reflection.value = dayD.reflection || ''; reflection.disabled = false; }
 
   // energy stars
   document.querySelectorAll('#energyStars .star').forEach(s => {
     s.classList.toggle('on', parseInt(s.dataset.e) <= (dayD.energy || 0));
-    s.onclick = isPast ? null : () => { dayD.energy = parseInt(s.dataset.e); saveState(); renderDaily(); };
-    s.style.opacity = isPast ? '0.5' : '1';
-    s.style.cursor  = isPast ? 'default' : 'pointer';
+    s.onclick = () => { dayD.energy = parseInt(s.dataset.e); saveState(); renderDaily(); };
+    s.style.opacity = '1';
+    s.style.cursor  = 'pointer';
   });
 
   // day rating stars
   document.querySelectorAll('#dayStars .star').forEach(s => {
     s.classList.toggle('on', parseInt(s.dataset.d) <= (dayD.dayRating || 0));
-    s.onclick = isPast ? null : () => { dayD.dayRating = parseInt(s.dataset.d); saveState(); renderDaily(); };
-    s.style.opacity = isPast ? '0.5' : '1';
-    s.style.cursor  = isPast ? 'default' : 'pointer';
+    s.onclick = () => { dayD.dayRating = parseInt(s.dataset.d); saveState(); renderDaily(); };
+    s.style.opacity = '1';
+    s.style.cursor  = 'pointer';
   });
 
   // habits — pull dynamically from all categories (only those pinned to Today)
