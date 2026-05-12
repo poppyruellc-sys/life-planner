@@ -4312,7 +4312,7 @@ function renderCrm() {
           <div style="display:flex;align-items:center;gap:12px;margin-top:6px">
             <span style="font-size:11px;color:var(--text3)">${CADENCE_LABELS[c.cadence]||c.cadence}</span>
             <span style="font-size:11px;color:var(--text3)">Last: ${daysLabel}</span>
-            ${c.nextContact ? `<span style="font-size:11px;color:var(--accent)">Next: ${esc(c.nextContact)}</span>` : ''}
+            ${c.nextContact ? `<span style="font-size:11px;color:var(--accent)">Next: ${new Date(c.nextContact+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>` : ''}
           </div>
           ${c.why ? `<div style="font-size:12px;color:var(--text3);margin-top:4px;font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.why)}</div>` : ''}
         </div>
@@ -4445,7 +4445,10 @@ function renderCrmDetail(c) {
       </div>
       <div style="margin-top:8px">
         <label style="${labSt}">Next follow-up</label>
-        <input type="text" id="cd-next" value="${esc(c.nextContact||'')}" placeholder="e.g. Mid-May, Jun 1..." onchange="updateContact('nextContact',this.value)" style="${inpSt}">
+        <div style="display:flex;gap:6px;align-items:center">
+          <input type="date" id="cd-next" value="${c.nextContact||''}" onchange="updateContact('nextContact',this.value)" style="${inpSt};flex:1;${c.nextContact?'border-color:var(--accent);background:#EAF3FB;':''}">
+          ${c.nextContact ? `<button onclick="updateContact('nextContact','');document.getElementById('cd-next').value='';renderCrmDetail((S.contacts||[]).find(x=>x.id==='${c.id}'))" title="Clear date" style="padding:6px 10px;border:1px solid var(--border2);border-radius:8px;background:transparent;cursor:pointer;color:var(--text3);font-size:12px;font-family:'DM Sans',sans-serif;white-space:nowrap;flex-shrink:0">✕ Clear</button>` : ''}
+        </div>
       </div>
     </div>
 
@@ -5363,14 +5366,13 @@ function buildCalEvents() {
   // 3. CRM follow-ups (nextContact date + overdue contacts)
   const CADENCE_DAYS_CAL = {weekly:7, biweekly:14, monthly:30, quarterly:90, biannual:180, annual:365};
   (S.contacts || []).forEach(c => {
-    // Next follow-up if set
+    // Next follow-up if set (now always ISO date)
     if (c.nextContact) {
-      const range = parseDateRange(c.nextContact);
-      if (range) {
-        const date = range.start;
+      const date = new Date(c.nextContact + 'T12:00:00');
+      if (!isNaN(date)) {
         events.push({
           date,
-          dateStr: date.toISOString().split('T')[0],
+          dateStr: c.nextContact,
           label: 'Follow up: ' + c.name,
           color: '#1A5FA0',
           type: 'crm',
