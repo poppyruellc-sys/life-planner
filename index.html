@@ -2756,6 +2756,17 @@ function switchCat(id) {
   renderCategories();
 }
 
+// Global moveToCatBtn — used by both actionBtns and habitActionBtns
+function moveToCatBtn(gi) {
+  const opts = CATS.filter(c => c.id !== activeCat).map(c =>
+    `<option value="${c.id}">${esc(c.name)}</option>`
+  ).join('');
+  return `<select title="Move to category" onchange="moveToCat(${gi},this.value);this.value=''" style="padding:4px 6px;font-size:11px;border:1px solid var(--border2);border-radius:6px;background:transparent;cursor:pointer;color:var(--text3);font-family:'DM Sans',sans-serif;max-width:80px">
+    <option value="" disabled selected>→ Move</option>
+    ${opts}
+  </select>`;
+}
+
 function renderCatPanel() {
   try {
   const cat = CATS.find(c => c.id === activeCat);
@@ -3004,17 +3015,6 @@ function renderCatPanel() {
     return `<div class="drag-handle" draggable="true"
       ondragstart="dragStart(event,'${activeCat}',${gi},'${tp}')"
       ondragend="dragEnd(event)" title="Drag to reorder">☰</div>`;
-  }
-
-  // ── Move to category button ───────────────────────────────────────────────
-  function moveToCatBtn(gi) {
-    const opts = CATS.filter(c => c.id !== activeCat).map(c =>
-      `<option value="${c.id}">${esc(c.name)}</option>`
-    ).join('');
-    return `<select title="Move to category" onchange="moveToCat(${gi},this.value);this.value=''" style="padding:4px 6px;font-size:11px;border:1px solid var(--border2);border-radius:6px;background:transparent;cursor:pointer;color:var(--text3);font-family:'DM Sans',sans-serif;max-width:80px">
-      <option value="" disabled selected>→ Move</option>
-      ${opts}
-    </select>`;
   }
 
   // Build sections
