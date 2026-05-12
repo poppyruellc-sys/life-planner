@@ -178,6 +178,8 @@
   /* PANELS */
   .panel { display: none; }
   .panel.active { display: block; }
+  #panel-categories { overflow-x: hidden; }
+  .item-actions { flex-wrap: wrap; max-width: 100%; }
 
   /* CARDS */
   .card {
@@ -1289,6 +1291,10 @@
           <div class="g2" style="gap:10px;margin-bottom:10px">
             <input type="text" id="nc-role" placeholder="Role / title">
             <input type="text" id="nc-how" placeholder="How you know them">
+          </div>
+          <div class="g2" style="gap:10px;margin-bottom:10px">
+            <input type="email" id="nc-email" placeholder="Email">
+            <input type="tel" id="nc-phone" placeholder="Phone">
           </div>
           <textarea id="nc-why" rows="2" placeholder="Why this relationship matters — what it's about" style="margin-bottom:10px"></textarea>
           <textarea id="nc-interests" rows="2" placeholder="Relevant deals, projects, shared interests" style="margin-bottom:10px"></textarea>
@@ -2751,6 +2757,7 @@ function switchCat(id) {
 }
 
 function renderCatPanel() {
+  try {
   const cat = CATS.find(c => c.id === activeCat);
   const items = S.items[activeCat] || [];
 
@@ -2775,9 +2782,12 @@ function renderCatPanel() {
 
   function actionBtns(gi, item) {
     const pinned = item.showOnDash;
-    return `<div class="item-actions" style="display:flex;gap:3px;align-items:center;flex-shrink:0">
+    const weekPinned = item.weekPin === getWeekMonday(new Date());
+    return `<div class="item-actions" style="display:flex;gap:3px;align-items:center;flex-shrink:0;flex-wrap:wrap">
       <button id="edit-btn-${gi}" onclick="toggleItemEdit(${gi})" title="Edit" style="padding:4px 9px;font-size:12px;border:1px solid var(--border2);border-radius:6px;background:transparent;cursor:pointer;color:var(--text3);font-family:'DM Sans',sans-serif">✎</button>
       <button id="dash-btn-${gi}" onclick="toggleShowOnDash(${gi})" title="${pinned?'Unpin from dashboard':'Pin to dashboard'}" style="padding:4px 9px;font-size:12px;border:1px solid ${pinned?'#1A7A55':'var(--border2)'};border-radius:6px;background:${pinned?'#E8F0EC':'transparent'};cursor:pointer;color:${pinned?'#1A7A55':'var(--text3)'};font-family:'DM Sans',sans-serif">◈</button>
+      <button id="week-pin-btn-${gi}" onclick="toggleWeekPin('${activeCat}',${gi})" title="${weekPinned?'Remove from this week':'Pin to this week'}" style="padding:4px 9px;font-size:12px;border:1px solid ${weekPinned?'#6B3FA0':'var(--border2)'};border-radius:6px;background:${weekPinned?'#F0EBF8':'transparent'};cursor:pointer;color:${weekPinned?'#6B3FA0':'var(--text3)'};font-family:'DM Sans',sans-serif">📌</button>
+      ${moveToCatBtn(gi)}
       <button onclick="deleteCatItem(${gi})" title="Delete — permanently removes this item" style="padding:4px 9px;font-size:12px;border:1px solid var(--border2);border-radius:6px;background:transparent;cursor:pointer;color:#c0392b;font-family:'DM Sans',sans-serif">✕</button>
     </div>`;
   }
@@ -2989,14 +2999,38 @@ function renderCatPanel() {
     </div>`;
   }
 
+  // ── Drag handle helper ──────────────────────────────────────────────────────
+  function dragHandle(gi, tp) {
+    return `<div class="drag-handle" draggable="true"
+      ondragstart="dragStart(event,'${activeCat}',${gi},'${tp}')"
+      ondragend="dragEnd(event)" title="Drag to reorder">☰</div>`;
+  }
+
+  // ── Move to category button ───────────────────────────────────────────────
+  function moveToCatBtn(gi) {
+    const opts = CATS.filter(c => c.id !== activeCat).map(c =>
+      `<option value="${c.id}">${esc(c.name)}</option>`
+    ).join('');
+    return `<select title="Move to category" onchange="moveToCat(${gi},this.value);this.value=''" style="padding:4px 6px;font-size:11px;border:1px solid var(--border2);border-radius:6px;background:transparent;cursor:pointer;color:var(--text3);font-family:'DM Sans',sans-serif;max-width:80px">
+      <option value="" disabled selected>→ Move</option>
+      ${opts}
+    </select>`;
+  }
+
   // Build sections
   const sections = TYPES.filter(tp => grouped[tp]).map(tp => {
-    const rows = grouped[tp].map(({item, gi, origTp}) => {
+    const allInType = grouped[tp];
+    const activeItems = allInType.filter(({item}) => item.s !== 'done');
+    const doneItems   = allInType.filter(({item}) => item.s === 'done');
+
+    const rows = activeItems.map(({item, gi}) => {
 
       // ── GOAL ──
       if (tp === 'goal') {
         const pct = item.progress || 0;
-        return `<div class="item-row">
+        return `<div class="item-row" data-gi="${gi}" data-tp="goal"
+          ondragover="dragOver(event)" ondrop="drop(event,'${activeCat}','goal')">
+          ${dragHandle(gi,'goal')}
           <div style="flex:1;min-width:0">
             <div id="item-display-${gi}">
               <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px">
@@ -3024,7 +3058,9 @@ function renderCatPanel() {
       // ── TASK ──
       if (tp === 'task') {
         const priColor = {high:'#c0392b',med:'#9A6500',low:'#2D6E20'};
-        return `<div class="item-row">
+        return `<div class="item-row" data-gi="${gi}" data-tp="task"
+          ondragover="dragOver(event)" ondrop="drop(event,'${activeCat}','task')">
+          ${dragHandle(gi,'task')}
           <div class="checkbox ${item.s==='done'?'done':''}" onclick="toggleCatItem(${gi})">${item.s==='done'?'✓':''}</div>
           <div style="flex:1;min-width:0">
             <div id="item-display-${gi}">
@@ -3047,7 +3083,9 @@ function renderCatPanel() {
       // ── HABIT / ROUTINE ──
       if (tp === 'habit') {
         const hs = item.habitStatus || 'yellow';
-        return `<div class="item-row">
+        return `<div class="item-row" data-gi="${gi}" data-tp="habit"
+          ondragover="dragOver(event)" ondrop="drop(event,'${activeCat}','habit')">
+          ${dragHandle(gi,'habit')}
           <div style="flex:1;min-width:0">
             <div id="item-display-${gi}">
               <div style="display:flex;align-items:center;gap:6px">
@@ -3074,7 +3112,9 @@ function renderCatPanel() {
       // ── EVENT / TRIP ──
       if (tp === 'event') {
         const sdotColor = item.s==='upcoming'?'#1A7A55':item.s==='done'?'#aaa':item.s==='unplanned'?'#c0392b':'#9A6500';
-        return `<div class="item-row">
+        return `<div class="item-row" data-gi="${gi}" data-tp="event"
+          ondragover="dragOver(event)" ondrop="drop(event,'${activeCat}','event')">
+          ${dragHandle(gi,'event')}
           <div class="sdot" style="background:${sdotColor};margin-top:4px;flex-shrink:0"></div>
           <div style="flex:1;min-width:0">
             <div id="item-display-${gi}">
@@ -3098,9 +3138,30 @@ function renderCatPanel() {
       return '';
     }).join('');
 
-    return `<div style="margin-bottom:20px">
+    // Done items section
+    let doneHtml = '';
+    if (doneItems.length) {
+      const doneRows = doneItems.map(({item, gi}) => {
+        const opacity = 'opacity:.5;';
+        if (tp === 'goal') return `<div class="item-row" style="${opacity}"><div style="flex:1;min-width:0"><div style="font-size:13px;text-decoration:line-through;color:var(--text3)">${esc(item.t)}</div></div>${moveToCatBtn(gi)}<button onclick="deleteCatItem(${gi})" style="padding:4px 9px;font-size:12px;border:1px solid var(--border2);border-radius:6px;background:transparent;cursor:pointer;color:#c0392b;font-family:'DM Sans',sans-serif">✕</button></div>`;
+        if (tp === 'task') return `<div class="item-row" style="${opacity}"><div class="checkbox done">✓</div><div style="flex:1;min-width:0"><div class="item-text done">${esc(item.t)}</div></div>${moveToCatBtn(gi)}<button onclick="deleteCatItem(${gi})" style="padding:4px 9px;font-size:12px;border:1px solid var(--border2);border-radius:6px;background:transparent;cursor:pointer;color:#c0392b;font-family:'DM Sans',sans-serif">✕</button></div>`;
+        if (tp === 'event') return `<div class="item-row" style="${opacity}"><div class="sdot" style="background:#aaa;margin-top:4px"></div><div style="flex:1;min-width:0"><div style="font-size:13px;text-decoration:line-through;color:var(--text3)">${esc(item.t)}</div></div>${moveToCatBtn(gi)}<button onclick="deleteCatItem(${gi})" style="padding:4px 9px;font-size:12px;border:1px solid var(--border2);border-radius:6px;background:transparent;cursor:pointer;color:#c0392b;font-family:'DM Sans',sans-serif">✕</button></div>`;
+        return '';
+      }).join('');
+      const uid = tp + '_done_' + activeCat;
+      doneHtml = `<div class="completed-section">
+        <button class="completed-toggle" onclick="toggleDoneSection('${uid}')">
+          <span id="done-arrow-${uid}" style="font-size:8px">&#9654;</span>
+          ${doneItems.length} completed
+        </button>
+        <div id="done-section-${uid}" style="display:none">${doneRows}</div>
+      </div>`;
+    }
+
+    return `<div style="margin-bottom:20px" data-type-group="${tp}">
       <div class="card-title">${TYPE_LABEL[tp]}</div>
-      ${rows}
+      <div data-drop-zone="${tp}">${rows.join ? rows.join('') : rows}</div>
+      ${doneHtml}
     </div>`;
   }).join('');
 
@@ -3137,6 +3198,7 @@ function renderCatPanel() {
         <textarea rows="2" placeholder="Context, ideas, next steps..." onchange="setCatNote(this.value)">${esc(S.catNotes[activeCat] || '')}</textarea>
       </div>
     </div>`;
+  } catch(e) { console.error('renderCatPanel error:', e.message, e.stack); showToast('Categories error: ' + e.message); }
 }
 
 function toggleCatItem(gi) {
@@ -4173,6 +4235,8 @@ function saveNewContact() {
     company:   document.getElementById('nc-company').value.trim(),
     role:      document.getElementById('nc-role').value.trim(),
     howKnow:   document.getElementById('nc-how').value.trim(),
+    email:     (document.getElementById('nc-email') || {value:''}).value.trim(),
+    phone:     (document.getElementById('nc-phone') || {value:''}).value.trim(),
     why:       document.getElementById('nc-why').value.trim(),
     interests: document.getElementById('nc-interests').value.trim(),
     cadence:   document.getElementById('nc-cadence').value,
@@ -4185,7 +4249,7 @@ function saveNewContact() {
   S.contacts.push(c);
   saveState();
   // reset form
-  ['nc-name','nc-company','nc-role','nc-how','nc-why','nc-interests'].forEach(id => { document.getElementById(id).value = ''; });
+  ['nc-name','nc-company','nc-role','nc-how','nc-email','nc-phone','nc-why','nc-interests'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('addContactForm').style.display = 'none';
   renderCrm();
   showToast(name + ' added to your network');
@@ -4300,6 +4364,10 @@ function renderCrmDetail(c) {
       </div>
     </div>
 
+    <label style="${labSt}">Email</label>
+    <input type="email" value="${esc(c.email||'')}" placeholder="email@example.com" onchange="updateContact('email',this.value)" style="${inpSt}">
+    <label style="${labSt}">Phone</label>
+    <input type="tel" value="${esc(c.phone||'')}" placeholder="+1 (555) 000-0000" onchange="updateContact('phone',this.value)" style="${inpSt}">
     <label style="${labSt}">Role</label>
     <input type="text" value="${esc(c.role||'')}" placeholder="Role / title" onchange="updateContact('role',this.value)" style="${inpSt}">
     <label style="${labSt}">Company</label>
@@ -4810,6 +4878,67 @@ function closeSchedModal() {
   const modal = document.getElementById('schedModal');
   if (modal) modal.style.display = 'none';
   editingBlockId = null;
+}
+
+
+// ─── DRAG AND DROP ────────────────────────────────────────────────────────────
+
+let dragSrcCat = null, dragSrcGi = null, dragSrcTp = null;
+
+function dragStart(e, catId, gi, tp) {
+  dragSrcCat = catId; dragSrcGi = gi; dragSrcTp = tp;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', gi);
+  setTimeout(() => { const r = e.target.closest('.item-row'); if (r) r.classList.add('dragging'); }, 0);
+}
+
+function dragEnd(e) {
+  document.querySelectorAll('.item-row.dragging').forEach(r => r.classList.remove('dragging'));
+  document.querySelectorAll('.item-row.drag-over').forEach(r => r.classList.remove('drag-over'));
+}
+
+function dragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const row = e.target.closest('.item-row');
+  document.querySelectorAll('.item-row.drag-over').forEach(r => r.classList.remove('drag-over'));
+  if (row && !row.classList.contains('dragging')) row.classList.add('drag-over');
+}
+
+function drop(e, catId, tp) {
+  e.preventDefault();
+  document.querySelectorAll('.item-row.drag-over').forEach(r => r.classList.remove('drag-over'));
+  if (!dragSrcCat || dragSrcTp !== tp || dragSrcCat !== catId) return;
+  const targetRow = e.target.closest('.item-row');
+  if (!targetRow) return;
+  const targetGi = parseInt(targetRow.dataset.gi);
+  if (isNaN(targetGi) || targetGi === dragSrcGi) return;
+  const items = S.items[catId];
+  if (!items) return;
+  const srcItem = items.splice(dragSrcGi, 1)[0];
+  const adj = targetGi > dragSrcGi ? targetGi - 1 : targetGi;
+  items.splice(adj, 0, srcItem);
+  saveState(); renderCatPanel();
+}
+
+function moveToCat(gi, targetCatId) {
+  if (!targetCatId || targetCatId === activeCat) return;
+  const items = S.items[activeCat];
+  if (!items || !items[gi]) return;
+  const item = items.splice(gi, 1)[0];
+  if (!S.items[targetCatId]) S.items[targetCatId] = [];
+  S.items[targetCatId].push(item);
+  saveState(); renderCatPanel();
+  showToast('Moved to ' + ((CATS.find(c => c.id === targetCatId) || {}).name || targetCatId));
+}
+
+function toggleDoneSection(uid) {
+  const el = document.getElementById('done-section-' + uid);
+  const arrow = document.getElementById('done-arrow-' + uid);
+  if (!el) return;
+  const isOpen = el.style.display !== 'none';
+  el.style.display = isOpen ? 'none' : 'block';
+  if (arrow) arrow.style.transform = isOpen ? '' : 'rotate(90deg)';
 }
 
 // ─── MANAGE CATEGORIES ───────────────────────────────────────────────────────
