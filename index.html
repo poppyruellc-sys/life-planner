@@ -179,7 +179,11 @@
   .panel { display: none; }
   .panel.active { display: block; }
   #panel-categories { overflow-x: hidden; }
-  .item-actions { flex-wrap: wrap; max-width: 100%; }
+  #panel-crm { overflow-x: hidden; }
+  .panel.active { overflow-x: hidden; max-width: 100%; }
+  .item-actions { flex-wrap: wrap; }
+  .item-controls { flex-wrap: wrap; }
+  .habit-controls { flex-wrap: wrap; }
 
   /* CARDS */
   .card {
@@ -604,7 +608,7 @@
     input[type=text], textarea, select { font-size: 16px; }
 
     /* CRM cards */
-    .crm-card { padding: 12px 14px; }
+    .crm-card { overflow: hidden; word-break: break-word;  padding: 12px 14px; }
 
     /* Progress bars more visible */
     .pbar { height: 5px; }
@@ -655,7 +659,7 @@
   #catProgress > div { transition: background .15s; padding: 4px 6px; margin-left: -6px; margin-right: -6px; border-radius: 6px; }
 
   /* CRM */
-  .crm-card {
+  .crm-card { overflow: hidden; word-break: break-word; 
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -1026,6 +1030,11 @@
                   <span class="star" data-e="1">●</span><span class="star" data-e="2">●</span><span class="star" data-e="3">●</span><span class="star" data-e="4">●</span><span class="star" data-e="5">●</span>
                 </div>
               </div>
+            </div>
+
+            <div class="card" style="margin-bottom:16px">
+              <div class="card-title">Events today</div>
+              <div id="dayEvents"></div>
             </div>
 
             <div class="card">
@@ -2254,6 +2263,36 @@ function renderDaily() {
     </div>`;
   }).join('') : '<div class="muted" style="padding:6px 0">No tasks yet. Add one above.</div>';
 
+  // ── Dated events from categories for this day ──────────────────────────────
+  const dayEventsEl = document.getElementById('dayEvents');
+  if (dayEventsEl) {
+    const dayEvts = [];
+    CATS.forEach(cat => {
+      (S.items[cat.id] || []).forEach((item, gi) => {
+        if (item.tp !== 'event' || item.s === 'done') return;
+        if (!item.d) return;
+        const range = window.parseDateRange && window.parseDateRange(item.d);
+        if (!range) return;
+        const ds = range.start.getFullYear() + '-' + String(range.start.getMonth()+1).padStart(2,'0') + '-' + String(range.start.getDate()).padStart(2,'0');
+        const de = range.end.getFullYear() + '-' + String(range.end.getMonth()+1).padStart(2,'0') + '-' + String(range.end.getDate()).padStart(2,'0');
+        if (vd >= ds && vd <= de) dayEvts.push({item, catId:cat.id, catName:cat.name, catColor:cat.color, gi});
+      });
+    });
+    // CRM meetings on this day
+    (S.contacts||[]).forEach(c => {
+      if (c.scheduledMeeting === vd) dayEvts.push({item:{t:'📅 Meeting: '+c.name, s:'upcoming'}, catId:null, catName:'Network', catColor:'#1A5FA0', gi:null, contactId:c.id});
+    });
+    dayEventsEl.innerHTML = dayEvts.length
+      ? dayEvts.map(e => `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="${e.contactId?`openCrmDetail('${e.contactId}')`:`jumpToItem('${e.catId}',${e.gi})`}">
+          <div class="sdot" style="background:#1A7A55;flex-shrink:0"></div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px">${esc(e.item.t)}</div>
+            <div style="font-size:10px;color:${e.catColor};margin-top:1px">${e.catName}</div>
+          </div>
+        </div>`).join('')
+      : '<div class="muted" style="font-size:13px;padding:4px 0">No events today.</div>';
+  }
+
   renderDailyHistory(dailyHistoryLimit);
   } catch(e) { console.error('renderDaily error:', e.message, e.stack); showToast('Error loading Today tab: ' + e.message); }
 }
@@ -2512,23 +2551,42 @@ function applyAutoStatusSilent(catId, gi) {
   if (!item) return;
   const freq = item.habitFreq || 'weekly_3';
   const [freqType, freqNum] = freq.includes('_') ? [freq.split('_')[0], parseInt(freq.split('_')[1])] : [freq, 1];
-  const todayDate = new Date();
+  // Use local date for today to avoid timezone issues
+  const now = new Date();
+  const todayLocal = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
   const allLogKeys = Object.keys(S.habitLog || {}).filter(k => k.endsWith('_habit_' + catId + '_' + gi) && S.habitLog[k]);
   let autoStatus = 'yellow';
-  if (freqType === 'daily' || freqType === 'weekly') {
-    const target = freqType === 'daily' ? 7 : freqNum;
-    const sevenDaysAgo = new Date(todayDate); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    const last7 = allLogKeys.filter(k => new Date(k.split('_habit_')[0] + 'T12:00:00') >= sevenDaysAgo).length;
-    autoStatus = last7 >= target ? 'green' : last7 >= Math.ceil(target * 0.6) ? 'yellow' : 'red';
+
+  // Helper: parse key date safely (local, not UTC)
+  const keyDate = k => {
+    const ds = k.split('_habit_')[0];
+    const [y,m,d] = ds.split('-').map(Number);
+    return new Date(y, m-1, d);
+  };
+
+  if (freqType === 'daily') {
+    // Need to hit daily target most days — check last 7 days
+    const cutoff = new Date(now); cutoff.setDate(cutoff.getDate() - 7);
+    const last7 = allLogKeys.filter(k => keyDate(k) > cutoff).length;
+    autoStatus = last7 >= 5 ? 'green' : last7 >= 3 ? 'yellow' : 'red';
+  } else if (freqType === 'weekly') {
+    // Count logs in current week (Mon–Sun)
+    const mon = new Date(now);
+    const dow = mon.getDay() === 0 ? 6 : mon.getDay() - 1;
+    mon.setDate(mon.getDate() - dow);
+    mon.setHours(0,0,0,0);
+    const thisWeekCount = allLogKeys.filter(k => keyDate(k) >= mon).length;
+    autoStatus = thisWeekCount >= freqNum ? 'green' : thisWeekCount >= Math.ceil(freqNum * 0.5) ? 'yellow' : 'red';
   } else if (freqType === 'monthly') {
-    const thirtyDaysAgo = new Date(todayDate); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const last30 = allLogKeys.filter(k => new Date(k.split('_habit_')[0] + 'T12:00:00') >= thirtyDaysAgo).length;
+    const cutoff = new Date(now); cutoff.setDate(cutoff.getDate() - 30);
+    const last30 = allLogKeys.filter(k => keyDate(k) > cutoff).length;
     autoStatus = last30 >= freqNum ? 'green' : last30 >= Math.ceil(freqNum * 0.6) ? 'yellow' : 'red';
   } else if (freqType === 'yearly') {
     if (allLogKeys.length) {
       const expectedDays = Math.floor(365 / freqNum);
       const lastLogDate = allLogKeys.map(k => k.split('_habit_')[0]).sort().pop();
-      const daysSince = Math.floor((todayDate - new Date(lastLogDate + 'T12:00:00')) / 86400000);
+      const [ly,lm,ld] = lastLogDate.split('-').map(Number);
+      const daysSince = Math.floor((now - new Date(ly,lm-1,ld)) / 86400000);
       autoStatus = daysSince <= expectedDays ? 'green' : daysSince <= Math.floor(expectedDays * 1.25) ? 'yellow' : 'red';
     } else { autoStatus = 'red'; }
   }
@@ -2587,7 +2645,7 @@ function addTask() {
     cat: document.getElementById('ncat').value,
     pri: document.getElementById('npri').value,
     done: false,
-    date: today()
+    date: getViewingDate()
   };
   if (dateVal) task.d = dateVal;
   S.tasks.push(task);
@@ -2812,7 +2870,7 @@ function renderCatPanel() {
     return `<div class="item-actions" style="display:flex;gap:3px;align-items:center;flex-shrink:0;flex-wrap:wrap">
       <button id="edit-btn-${gi}" onclick="toggleItemEdit(${gi})" title="Edit" style="padding:4px 9px;font-size:12px;border:1px solid var(--border2);border-radius:6px;background:transparent;cursor:pointer;color:var(--text3);font-family:'DM Sans',sans-serif">✎</button>
       <button id="dash-btn-${gi}" onclick="toggleShowOnDash(${gi})" title="${pinned?'Unpin from dashboard':'Pin to dashboard'}" style="padding:4px 9px;font-size:12px;border:1px solid ${pinned?'#1A7A55':'var(--border2)'};border-radius:6px;background:${pinned?'#E8F0EC':'transparent'};cursor:pointer;color:${pinned?'#1A7A55':'var(--text3)'};font-family:'DM Sans',sans-serif">◈</button>
-      <div style="display:flex;gap:2px;align-items:center;border:1px solid var(--border2);border-radius:12px;padding:2px 4px;background:var(--surface2)">
+      <div style="display:flex;gap:2px;align-items:center;border:1px solid var(--border2);border-radius:12px;padding:2px 4px;background:var(--surface2);flex-shrink:1;min-width:0;flex-wrap:wrap">
         <span style="font-size:9px;color:var(--text3);margin-right:2px">Show:</span>
         <button id="today-btn-${gi}" onclick="toggleShowOnToday(${gi})" style="${pillStyle(onToday,'#1A5FA0','#E6F1FB')}" title="Today tab">Today</button>
         <button id="week-btn-${gi}"  onclick="toggleShowOnWeek(${gi})"  style="${pillStyle(onWeek,'#6B3FA0','#F0EBF8')}"  title="Week tab">Week</button>
@@ -2916,23 +2974,53 @@ function renderCatPanel() {
       </div>`
     ).join('');
 
-    // ── 4-week calendar ────────────────────────────────────────────
-    const miniDot = (d) => {
+    // ── 4-week calendar (week-aligned Mon–Sun rows) ───────────────
+    const miniDot = (d, empty) => {
+      if (empty) return `<div style="width:28px;height:28px"></div>`;
       const bg = d.logged ? 'var(--accent)' : 'var(--surface)';
       const border = d.isToday ? '2px solid var(--accent)' : '1px solid var(--border2)';
       const textColor = d.logged ? '#fff' : d.isToday ? 'var(--accent)' : 'var(--text3)';
       const dateNum = new Date(d.str + 'T12:00:00').getDate();
       return `<div onclick="logHabitDay('${catId}',${gi},'${d.str}')" title="${d.str}" style="width:28px;height:28px;border-radius:6px;background:${bg};border:${border};cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:${textColor};transition:all .15s;flex-shrink:0" onmouseover="this.style.opacity='.7'" onmouseout="this.style.opacity='1'">${dateNum}</div>`;
     };
+
+    // Build a map of logged dates for quick lookup
+    const logMap = {};
+    days.forEach(d => { logMap[d.str] = d; });
+
+    // Find Monday of the week 4 weeks ago (go back to Monday)
+    const gridStart = new Date(todayDate);
+    gridStart.setDate(gridStart.getDate() - 27); // 28 days ago
+    // Align to Monday
+    const startDow = gridStart.getDay(); // 0=Sun
+    const toMon = startDow === 0 ? -6 : 1 - startDow;
+    gridStart.setDate(gridStart.getDate() + toMon);
+
     const calRows = [];
     for (let row = 0; row < 4; row++) {
       const cells = [];
+      const rowDate = new Date(gridStart);
+      rowDate.setDate(rowDate.getDate() + row * 7);
+      const weekLabel = rowDate.toLocaleDateString('en-US', {month:'short', day:'numeric'});
       for (let col = 0; col < 7; col++) {
-        const idx = row * 7 + col;
-        cells.push(idx < 28 ? miniDot(days[idx]) : `<div style="width:28px;height:28px"></div>`);
+        const cellDate = new Date(rowDate);
+        cellDate.setDate(cellDate.getDate() + col);
+        const cellStr = cellDate.getFullYear() + '-' + String(cellDate.getMonth()+1).padStart(2,'0') + '-' + String(cellDate.getDate()).padStart(2,'0');
+        const isFuture = cellStr > todayStr;
+        if (isFuture) {
+          cells.push(`<div style="width:28px;height:28px;border-radius:6px;background:var(--surface2);border:1px solid var(--border);opacity:.3;flex-shrink:0"></div>`);
+        } else if (logMap[cellStr]) {
+          cells.push(miniDot(logMap[cellStr], false));
+        } else {
+          // Day exists but not in our 28-day window — show as unlogged
+          const isToday2 = cellStr === todayStr;
+          const bg = 'var(--surface)';
+          const border = isToday2 ? '2px solid var(--accent)' : '1px solid var(--border2)';
+          const textColor = isToday2 ? 'var(--accent)' : 'var(--text3)';
+          const dateNum = cellDate.getDate();
+          cells.push(`<div onclick="logHabitDay('${catId}',${gi},'${cellStr}')" title="${cellStr}" style="width:28px;height:28px;border-radius:6px;background:${bg};border:${border};cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:${textColor};flex-shrink:0">${dateNum}</div>`);
+        }
       }
-      const weekStart = new Date(days[row * 7].str + 'T12:00:00');
-      const weekLabel = weekStart.toLocaleDateString('en-US', {month:'short', day:'numeric'});
       calRows.push(`<div style="display:flex;align-items:center;gap:4px">
         <div style="font-size:9px;color:var(--text3);width:28px;text-align:right;flex-shrink:0">${weekLabel}</div>
         <div style="display:flex;gap:3px">${cells.join('')}</div>
@@ -3167,7 +3255,11 @@ function renderCatPanel() {
 
   const addForm = `<div class="add-form" id="catAddForm">
     <input type="text" id="ni-text" placeholder="Name..." class="inp-gap">
-    <input type="text" id="ni-date" placeholder="Date (optional — e.g. Apr 26, Jul, Fall 2026)" class="inp-gap">
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+      <input type="date" id="ni-date" style="flex:1;padding:7px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface);color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none" title="Start date (optional)">
+      <span style="font-size:11px;color:var(--text3);flex-shrink:0">→</span>
+      <input type="date" id="ni-date2" style="flex:1;padding:7px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface);color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none" title="End date (optional, for ranges)">
+    </div>
     <div class="flex fw gap6">
       <select id="ni-type" style="flex:1">
         <option value="goal">Goal</option>
@@ -3215,8 +3307,12 @@ function setCatItemStatus(gi, val) {
 function addCatItem() {
   const txt = document.getElementById('ni-text').value.trim();
   if (!txt) return;
-  const dateEl = document.getElementById('ni-date');
-  const dateVal = dateEl ? dateEl.value.trim() : '';
+  const dateEl  = document.getElementById('ni-date');
+  const dateEl2 = document.getElementById('ni-date2');
+  const d1 = dateEl  ? dateEl.value.trim()  : '';
+  const d2 = dateEl2 ? dateEl2.value.trim() : '';
+  // Build date string: single date or range
+  const dateVal = d1 && d2 && d2 !== d1 ? d1 + ' to ' + d2 : d1;
   const tp = document.getElementById('ni-type').value;
   const newItem = {
     t: txt, tp: tp,
@@ -3228,7 +3324,7 @@ function addCatItem() {
   if (dateVal) newItem.d = dateVal;
   S.items[activeCat].push(newItem);
   document.getElementById('ni-text').value = '';
-  if (dateEl) dateEl.value = '';
+  if (dateEl) dateEl.value = ''; const dateEl2x = document.getElementById('ni-date2'); if (dateEl2x) dateEl2x.value = '';
   saveState(); renderCatPanel();
 }
 
@@ -5060,6 +5156,11 @@ function deleteCat(id) {
 window.parseDateRange = function parseDateRange(str) {
     if (!str) return null;
     str = str.trim();
+    // ISO range: "2026-04-26 to 2026-04-30"
+    const isoRange = str.match(/^(\d{4}-\d{2}-\d{2})\s+to\s+(\d{4}-\d{2}-\d{2})$/);
+    if (isoRange) {
+      return { start: new Date(isoRange[1]+'T12:00:00'), end: new Date(isoRange[2]+'T12:00:00') };
+    }
     const MONTHS = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
     const yr = new Date().getFullYear();
     if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
@@ -5307,6 +5408,21 @@ function buildCalEvents() {
     }
   });
 
+  // Standalone calendar events
+  (S.calEvents || []).forEach(ev => {
+    if (!ev.d) return;
+    events.push({
+      date: new Date(ev.d + 'T12:00:00'),
+      dateStr: ev.d,
+      label: ev.t,
+      color: 'var(--text2)',
+      type: 'standalone',
+      eventId: ev.id,
+      catName: 'Calendar',
+      source: 'standalone'
+    });
+  });
+
   return events;
 }
 
@@ -5461,6 +5577,7 @@ function showCalDetail(dStr, events, showAddOption) {
     html += `<div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
       <div style="font-size:12px;font-weight:500;margin-bottom:8px;color:var(--text2)">Add to this date</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button onclick="calAddItem(null,'${dStr}')" style="padding:4px 10px;font-size:11px;border:1px solid var(--border2);border-radius:20px;background:transparent;cursor:pointer;color:var(--text2);font-family:'DM Sans',sans-serif">📅 Standalone event</button>
         ${CATS.map(c => `<button onclick="calAddItem('${c.id}','${dStr}')" style="padding:4px 10px;font-size:11px;border:1px solid ${c.color};border-radius:20px;background:transparent;cursor:pointer;color:${c.color};font-family:'DM Sans',sans-serif">${c.name}</button>`).join('')}
       </div>
     </div>`;
@@ -5471,34 +5588,31 @@ function showCalDetail(dStr, events, showAddOption) {
 }
 
 function calAddItem(catId, dateStr) {
-  const cat = CATS.find(c => c.id === catId);
-  if (!cat) return;
-  // Show inline add form in the detail panel
+  const cat = catId ? CATS.find(c => c.id === catId) : null;
   const body = document.getElementById('calDetailBody');
   if (!body) return;
-  // Remove any existing inline form
   const existing = document.getElementById('calInlineForm');
   if (existing) existing.remove();
   const form = document.createElement('div');
   form.id = 'calInlineForm';
   form.style.cssText = 'margin-top:12px;padding:12px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)';
+  const inpSt = "width:100%;padding:7px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface);color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;box-sizing:border-box;margin-bottom:8px";
   form.innerHTML = `
-    <div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:8px">Add to ${esc(cat.name)} · ${dateStr}</div>
-    <input type="text" id="calAddName" placeholder="Item name..." style="width:100%;padding:7px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface);color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;box-sizing:border-box;margin-bottom:8px">
-    <select id="calAddType" style="width:100%;padding:7px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface);color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;margin-bottom:8px">
+    <div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:8px">${cat ? 'Add to ' + esc(cat.name) : 'Standalone event'} · ${dateStr}</div>
+    <input type="text" id="calAddName" placeholder="${cat ? 'Item name...' : 'Event title...'}" style="${inpSt}">
+    ${cat ? `<select id="calAddType" style="${inpSt}">
       <option value="event">Event</option>
       <option value="task">Task</option>
       <option value="goal">Goal</option>
-    </select>
+    </select>` : ''}
     <div style="display:flex;gap:6px">
-      <button onclick="calSaveItem('${catId}','${dateStr}')" style="flex:1;padding:7px;border:none;border-radius:8px;background:var(--accent);color:#fff;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;font-weight:500">Add</button>
+      <button onclick="calSaveItem(${catId?`'${catId}'`:'null'},'${dateStr}')" style="flex:1;padding:7px;border:none;border-radius:8px;background:var(--accent);color:#fff;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;font-weight:500">Add</button>
       <button onclick="document.getElementById('calInlineForm').remove()" style="padding:7px 12px;border:1px solid var(--border2);border-radius:8px;background:transparent;cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif;color:var(--text2)">Cancel</button>
     </div>`;
   body.appendChild(form);
   setTimeout(() => document.getElementById('calAddName').focus(), 50);
-  // Allow Enter key to submit
   form.querySelector('#calAddName').addEventListener('keydown', e => {
-    if (e.key === 'Enter') calSaveItem(catId, dateStr);
+    if (e.key === 'Enter') calSaveItem(catId?catId:null, dateStr);
   });
 }
 
@@ -5508,13 +5622,20 @@ function calSaveItem(catId, dateStr) {
   if (!nameEl) return;
   const name = nameEl.value.trim();
   if (!name) { nameEl.focus(); return; }
-  const tp = typeEl ? typeEl.value : 'event';
-  if (!S.items[catId]) S.items[catId] = [];
-  S.items[catId].push({ t: name, tp, s: tp === 'event' ? 'upcoming' : 'todo', d: dateStr, showOnDash: tp === 'event' });
+  if (catId) {
+    // Add to category
+    const tp = typeEl ? typeEl.value : 'event';
+    if (!S.items[catId]) S.items[catId] = [];
+    S.items[catId].push({ t: name, tp, s: tp === 'event' ? 'upcoming' : 'todo', d: dateStr, showOnDash: tp === 'event' });
+    showToast('Added to ' + (CATS.find(c=>c.id===catId)||{name:catId}).name);
+  } else {
+    // Standalone calendar event — store in S.calEvents
+    if (!S.calEvents) S.calEvents = [];
+    S.calEvents.push({ id: Date.now(), t: name, d: dateStr });
+    showToast('Standalone event added');
+  }
   saveState();
   renderCalendar();
-  showToast('Added to ' + (CATS.find(c=>c.id===catId)||{name:catId}).name);
-  // Refresh the detail panel
   const events = buildCalEvents().filter(e => e.dateStr === dateStr);
   showCalDetail(dateStr, events, true);
 }
