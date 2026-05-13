@@ -2992,13 +2992,14 @@ function renderCatPanel() {
     const logMap = {};
     days.forEach(d => { logMap[d.str] = d; });
 
-    // Find Monday of the week 4 weeks ago (go back to Monday)
-    const gridStart = new Date(todayDate);
-    gridStart.setDate(gridStart.getDate() - 27); // 28 days ago
-    // Align to Monday
-    const startDow = gridStart.getDay(); // 0=Sun
-    const toMon = startDow === 0 ? -6 : 1 - startDow;
-    gridStart.setDate(gridStart.getDate() + toMon);
+    // Find Monday of the current week — this will be the START of row 4
+    const currentWeekMon = new Date(todayDate);
+    const todayDow = currentWeekMon.getDay(); // 0=Sun
+    const backToMon = todayDow === 0 ? -6 : 1 - todayDow;
+    currentWeekMon.setDate(currentWeekMon.getDate() + backToMon);
+    // Grid starts 3 weeks before current week Monday
+    const gridStart = new Date(currentWeekMon);
+    gridStart.setDate(gridStart.getDate() - 21);
 
     const calRows = [];
     for (let row = 0; row < 4; row++) {
